@@ -555,7 +555,10 @@ class _EditBranchScreenState extends State<EditBranchScreen> {
                     Text(owner['username'] ?? ''),
                     Text(
                       owner['user_email'] ?? '',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
                     ),
                   ],
                 ),

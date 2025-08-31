@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/model/user_model.dart';
 import 'package:manager_room_project/widget/appbuttomnav.dart';
+import 'package:manager_room_project/widget/appcolors.dart';
 
 class SuperadmindashUi extends StatefulWidget {
   const SuperadmindashUi({super.key});
@@ -20,6 +21,8 @@ class _SuperadmindashUiState extends State<SuperadmindashUi> {
         title: Text(
           'Superadmin DashBoard',
         ),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
       body: Center(
         child: Column(

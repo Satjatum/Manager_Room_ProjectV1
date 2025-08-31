@@ -396,7 +396,7 @@ class _IssueManagementScreenState extends State<IssueManagementScreen>
               controller: _tabController,
               children: List.generate(6, (index) => _buildIssuesList()),
             ),
-      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 3),
     );
   }
 
