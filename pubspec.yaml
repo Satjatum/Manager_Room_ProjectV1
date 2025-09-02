@@ -21,7 +21,13 @@ dependencies:
 
   # Image Picker
   image_picker: ^1.1.2
- 
+
+  # File Picker
+  file_picker: ^8.1.2
+
+  # Image Compress
+  flutter_image_compress: ^2.3.0
+  
   # crypt 
   crypto: ^3.0.3
 

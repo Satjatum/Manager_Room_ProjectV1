@@ -372,13 +372,13 @@ class _BranchlistUiState extends State<BranchlistUi> {
                     ),
                     prefixIcon: Icon(
                       Icons.search,
-                      color: Colors.grey[600],
+                      color: Colors.grey[700],
                     ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             icon: Icon(
                               Icons.clear,
-                              color: Colors.grey[600],
+                              color: Colors.grey[700],
                             ),
                             onPressed: () {
                               _searchController.clear();
@@ -513,7 +513,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
       onSelected: (_) => _onStatusChanged(value),
       selectedColor: Colors.white.withOpacity(0.2),
       backgroundColor: Colors.transparent,
-      side: BorderSide(color: Colors.white54),
+      side: BorderSide(color: Colors.white.withOpacity(0.3)),
       checkmarkColor: Colors.black,
     );
   }
@@ -537,7 +537,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
             _searchQuery.isNotEmpty ? 'ไม่พบสาขาที่ค้นหา' : 'ยังไม่มีสาขา',
             style: TextStyle(
               fontSize: 18,
-              color: Colors.grey[600],
+              color: Colors.grey[700],
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -585,9 +585,10 @@ class _BranchlistUiState extends State<BranchlistUi> {
         branch['branch_image'].toString().isNotEmpty;
 
     return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: EdgeInsets.only(bottom: 20),
+      elevation: 6,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -822,7 +823,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
                     Text(
                       branch['description'],
                       style: TextStyle(
-                        color: Colors.grey[600],
+                        color: Colors.grey[700],
                         fontSize: 13,
                       ),
                       maxLines: 2,

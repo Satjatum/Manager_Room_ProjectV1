@@ -501,12 +501,29 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     }
   }
 
+  // Check if user can manage this branch
+  bool _canManageBranch() {
+    final currentUser = AuthService.getCurrentUser();
+    return currentUser?.isSuperAdmin ??
+        false ||
+            (currentUser?.isAdmin ??
+                false && currentUser?.userId == _branchData['owner_id']);
+  }
+
+  // Check if user can add rooms to this branch
+  bool _canAddRooms() {
+    final currentUser = AuthService.getCurrentUser();
+    // SuperAdmin can add to any branch, Admin can add only to their own branch
+    return currentUser?.isSuperAdmin ??
+        false ||
+            (currentUser?.isAdmin ??
+                false && currentUser?.userId == _branchData['owner_id']);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final currentUser = AuthService.getCurrentUser();
-    final canManage = currentUser?.isSuperAdmin ??
-        (currentUser?.isAdmin ??
-            false && currentUser?.userId == _branchData['owner_id']);
+    final canManage = _canManageBranch();
+    final canAddRooms = _canAddRooms();
     final status = _branchData['branch_status'] ?? 'active';
     final statusColor = _getStatusColor(status);
 
@@ -521,6 +538,205 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               actions: [
+                // Filter PopupMenuButton สำหรับ Room Management Tab
+                if (_tabController.index == 2) ...[
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.filter_list),
+                    onSelected: (value) {
+                      if (value.startsWith('status_')) {
+                        _onStatusFilterChanged(
+                            value.replaceFirst('status_', ''));
+                      } else if (value.startsWith('category_')) {
+                        _onCategoryFilterChanged(
+                            value.replaceFirst('category_', ''));
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Text(
+                          'กรองตามสถานะ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'status_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomStatus == 'all'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ทั้งหมด'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'status_available',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomStatus == 'available'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ว่าง'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'status_occupied',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomStatus == 'occupied'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('มีผู้เช่า'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'status_maintenance',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomStatus == 'maintenance'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ซ่อมบำรุง'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuDivider(),
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Text(
+                          'กรองตามประเภท',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_all',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'all'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ทั้งหมด'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_economy',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'economy'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ประหยัด'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_standard',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'standard'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('มาตรฐาน'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_deluxe',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'deluxe'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('ดีลักซ์'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_premium',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'premium'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('พรีเมี่ยม'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'category_vip',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedRoomCategory == 'vip'
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text('วีไอพี'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // Branch Management PopupMenuButton
                 if (canManage)
                   PopupMenuButton<String>(
                     onSelected: (value) async {
@@ -550,7 +766,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                         value: 'edit',
                         child: Row(
                           children: [
-                            Icon(Icons.edit, size: 20),
+                            Icon(Icons.edit, size: 20, color: Colors.green),
                             SizedBox(width: 8),
                             Text('แก้ไข'),
                           ],
@@ -650,6 +866,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
               labelColor: AppColors.primary,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primary,
+              onTap: (index) {
+                setState(() {}); // Refresh to update AppBar actions
+              },
               tabs: const [
                 Tab(icon: Icon(Icons.info), text: 'รายละเอียด'),
                 Tab(icon: Icon(Icons.analytics), text: 'สถิติ'),
@@ -672,35 +891,34 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         ),
       ),
       // FloatingActionButton แบบ Dynamic
-      floatingActionButton: canManage ? _buildFloatingActionButton() : null,
+      floatingActionButton: (canAddRooms && _tabController.index == 2)
+          ? _buildFloatingActionButton()
+          : null,
     );
   }
 
-  // FloatingActionButton แบบ Dynamic ตาม Tab ที่เลือก
+  // FloatingActionButton แบบ Dynamic สำหรับเพิ่มห้อง
   Widget _buildFloatingActionButton() {
-    switch (_tabController.index) {
-      default: // Tab จัดการห้อง
-        return FloatingActionButton(
-          onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddRoomScreen(
-                  branchId: _branchData['branch_id'],
-                  branchName: _branchData['branch_name'],
-                ),
-              ),
-            );
-            if (result == true) {
-              await _loadRoomData();
-              await _loadBranchStats();
-            }
-          },
-          backgroundColor: AppColors.primary,
-          heroTag: "addRoom",
-          child: const Icon(Icons.add, color: Colors.white),
+    return FloatingActionButton(
+      onPressed: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddRoomScreen(
+              branchId: _branchData['branch_id'],
+              branchName: _branchData['branch_name'],
+            ),
+          ),
         );
-    }
+        if (result == true) {
+          await _loadRoomData();
+          await _loadBranchStats();
+        }
+      },
+      backgroundColor: AppColors.primary,
+      heroTag: "addRoom",
+      child: const Icon(Icons.add, color: Colors.white),
+    );
   }
 
   Widget _buildHeaderImage() {
@@ -945,7 +1163,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   Widget _buildRoomManagementTab(bool canManage) {
     return Column(
       children: [
-        // ส่วนค้นหาและกรอง
+        // ส่วนค้นหา (ย้ายมาจาก AppBar filter)
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -958,92 +1176,89 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
               ),
             ],
           ),
-          child: Column(
-            children: [
-              TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'ค้นหาห้อง',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            _onSearchChanged('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'ค้นหาห้อง (หมายเลขห้อง, ชื่อห้อง)',
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.grey),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged('');
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedRoomStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'สถานะ',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('ทั้งหมด')),
-                        DropdownMenuItem(
-                            value: 'available', child: Text('ว่าง')),
-                        DropdownMenuItem(
-                            value: 'occupied', child: Text('มีผู้เช่า')),
-                        DropdownMenuItem(
-                            value: 'maintenance', child: Text('ซ่อมบำรุง')),
-                      ],
-                      onChanged: _onStatusFilterChanged,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedRoomCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'ประเภท',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('ทั้งหมด')),
-                        DropdownMenuItem(
-                            value: 'economy', child: Text('ประหยัด')),
-                        DropdownMenuItem(
-                            value: 'standard', child: Text('มาตรฐาน')),
-                        DropdownMenuItem(
-                            value: 'deluxe', child: Text('ดีลักซ์')),
-                        DropdownMenuItem(
-                            value: 'premium', child: Text('พรีเมี่ยม')),
-                        DropdownMenuItem(value: 'vip', child: Text('วีไอพี')),
-                      ],
-                      onChanged: _onCategoryFilterChanged,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
           ),
         ),
+
+        // Filter Status Bar
+        if (_selectedRoomStatus != 'all' || _selectedRoomCategory != 'all')
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue[50],
+            child: Row(
+              children: [
+                Icon(Icons.filter_list, size: 16, color: Colors.blue[700]),
+                SizedBox(width: 8),
+                Text(
+                  'กรองแล้ว: ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (_selectedRoomStatus != 'all') ...[
+                  Chip(
+                    label: Text(_getRoomStatusText(_selectedRoomStatus)),
+                    backgroundColor: Colors.blue[100],
+                    deleteIcon: Icon(Icons.close, size: 16),
+                    onDeleted: () => _onStatusFilterChanged('all'),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelStyle: TextStyle(fontSize: 11),
+                  ),
+                  SizedBox(width: 4),
+                ],
+                if (_selectedRoomCategory != 'all') ...[
+                  Chip(
+                    label: Text(_getRoomCategoryText(_selectedRoomCategory)),
+                    backgroundColor: Colors.blue[100],
+                    deleteIcon: Icon(Icons.close, size: 16),
+                    onDeleted: () => _onCategoryFilterChanged('all'),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelStyle: TextStyle(fontSize: 11),
+                  ),
+                ],
+                Spacer(),
+                TextButton(
+                  onPressed: () {
+                    _onStatusFilterChanged('all');
+                    _onCategoryFilterChanged('all');
+                  },
+                  child: Text('ล้างทั้งหมด', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            ),
+          ),
 
         // รายการห้อง
         Expanded(
           child: _isLoadingRooms
               ? const Center(child: CircularProgressIndicator())
               : _filteredRooms.isEmpty
-                  ? _buildEmptyRoomsState(canManage)
+                  ? _buildEmptyRoomsState(_canAddRooms())
                   : RefreshIndicator(
                       onRefresh: () async {
                         await _loadRoomData();
@@ -1065,6 +1280,8 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
 
   Widget _buildInfoCard(String title, IconData icon, List<Widget> children) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1072,8 +1289,15 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           children: [
             Row(
               children: [
-                Icon(icon, color: AppColors.primary),
-                const SizedBox(width: 8),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
                 Text(
                   title,
                   style: const TextStyle(
@@ -1093,25 +1317,26 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 120,
             child: Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 color: Colors.grey[700],
+                fontSize: 14,
               ),
             ),
           ),
-          const Text(': '),
+          const Text(': ', style: TextStyle(fontWeight: FontWeight.w500)),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(color: Colors.grey[800]),
+              style: TextStyle(color: Colors.grey[800], fontSize: 14),
             ),
           ),
         ],
@@ -1122,16 +1347,25 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   Widget _buildStatCard(
       String title, String value, IconData icon, Color color) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 28, color: color),
+            ),
+            const SizedBox(height: 12),
             Text(
               value,
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -1144,6 +1378,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                 color: Colors.grey[600],
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
             ),
           ],
         ),
@@ -1161,20 +1396,26 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('อัตราการเข้าพัก'),
-            Text('${(occupancyRate * 100).toStringAsFixed(1)}%'),
+            const Text('อัตราการเข้าพัก',
+                style: TextStyle(fontWeight: FontWeight.w500)),
+            Text('${(occupancyRate * 100).toStringAsFixed(1)}%',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: occupancyRate,
-          backgroundColor: Colors.grey[300],
-          valueColor: AlwaysStoppedAnimation<Color>(
-            occupancyRate > 0.8
-                ? Colors.green
-                : occupancyRate > 0.5
-                    ? Colors.orange
-                    : Colors.red,
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: occupancyRate,
+            backgroundColor: Colors.grey[300],
+            valueColor: AlwaysStoppedAnimation<Color>(
+              occupancyRate > 0.8
+                  ? Colors.green
+                  : occupancyRate > 0.5
+                      ? Colors.orange
+                      : Colors.red,
+            ),
+            minHeight: 8,
           ),
         ),
         const SizedBox(height: 16),
@@ -1224,60 +1465,82 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
 
   Widget _buildEmptyRoomsState(bool canAdd) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.hotel_outlined, size: 80, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'ไม่พบห้องที่ค้นหา'
-                : 'ยังไม่มีห้องในสาขานี้',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'ลองเปลี่ยนคำค้นหาหรือกรองข้อมูล'
-                : 'เริ่มต้นโดยการเพิ่มห้องแรก',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
-          ),
-          if (_searchQuery.isEmpty && canAdd) ...[
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddRoomScreen(
-                      branchId: _branchData['branch_id'],
-                      branchName: _branchData['branch_name'],
-                    ),
-                  ),
-                );
-                if (result == true) {
-                  await _loadRoomData();
-                  await _loadBranchStats();
-                }
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('เพิ่มห้องใหม่'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.hotel_outlined,
+                size: 50,
+                color: Colors.grey[400],
               ),
             ),
+            const SizedBox(height: 24),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'ไม่พบห้องที่ค้นหา'
+                  : 'ยังไม่มีห้องในสาขานี้',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              constraints: BoxConstraints(maxWidth: 280),
+              child: Text(
+                _searchQuery.isNotEmpty
+                    ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรองข้อมูล'
+                    : 'เริ่มต้นโดยการเพิ่มห้องแรก',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            if (_searchQuery.isEmpty && canAdd) ...[
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddRoomScreen(
+                        branchId: _branchData['branch_id'],
+                        branchName: _branchData['branch_name'],
+                      ),
+                    ),
+                  );
+                  if (result == true) {
+                    await _loadRoomData();
+                    await _loadBranchStats();
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('เพิ่มห้องใหม่'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25)),
+                  elevation: 2,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1289,163 +1552,246 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ห้อง ${room['room_number']}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        room['room_name'] ?? '',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _getRoomStatusText(status),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                if (canManage)
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      switch (value) {
-                        case 'edit':
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  RoomDetailScreen(room: room),
-                            ),
-                          );
-                          if (result == true) {
-                            await _loadRoomData();
-                            await _loadBranchStats();
-                          }
-                          break;
-                        case 'toggle_status':
-                          await _toggleRoomStatus(room['room_id'], status);
-                          break;
-                        case 'delete':
-                          await _deleteRoom(
-                              room['room_id'], room['room_number']);
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoomDetailScreen(room: room),
+            ),
+          );
+          if (result == true) {
+            await _loadRoomData();
+            await _loadBranchStats();
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Icon(Icons.edit, size: 20, color: Colors.blue),
+                            Text(
+                              'ห้อง ${room['room_number']}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             SizedBox(width: 8),
-                            Text('แก้ไข'),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: statusColor.withOpacity(0.3)),
+                              ),
+                              child: Text(
+                                _getRoomStatusText(status),
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      if (status != 'occupied')
-                        PopupMenuItem(
-                          value: 'toggle_status',
+                        if (room['room_name'] != null &&
+                            room['room_name'].toString().isNotEmpty) ...[
+                          SizedBox(height: 4),
+                          Text(
+                            room['room_name'],
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (canManage)
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        switch (value) {
+                          case 'edit':
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    RoomDetailScreen(room: room),
+                              ),
+                            );
+                            if (result == true) {
+                              await _loadRoomData();
+                              await _loadBranchStats();
+                            }
+                            break;
+                          case 'toggle_status':
+                            await _toggleRoomStatus(room['room_id'], status);
+                            break;
+                          case 'delete':
+                            await _deleteRoom(
+                                room['room_id'], room['room_number']);
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
                           child: Row(
                             children: [
-                              Icon(
-                                status == 'available'
-                                    ? Icons.build
-                                    : Icons.check,
-                                size: 20,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(status == 'available'
-                                  ? 'ปิดซ่อมบำรุง'
-                                  : 'เปิดใช้งาน'),
+                              Icon(Icons.edit, size: 20, color: Colors.blue),
+                              SizedBox(width: 8),
+                              Text('ดูรายละเอียด'),
                             ],
                           ),
                         ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('ลบห้อง', style: TextStyle(color: Colors.red)),
-                          ],
+                        if (status != 'occupied')
+                          PopupMenuItem(
+                            value: 'toggle_status',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  status == 'available'
+                                      ? Icons.build
+                                      : Icons.check,
+                                  size: 20,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(status == 'available'
+                                    ? 'ปิดซ่อมบำรุง'
+                                    : 'เปิดใช้งาน'),
+                              ],
+                            ),
+                          ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('ลบห้อง',
+                                  style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          'ประเภท: ${_getRoomCategoryText(room['room_cate'])}'),
-                      Text('ชนิด: ${_getRoomTypeText(room['room_type'])}'),
-                      Text('ขนาด: ${room['room_size']} ตร.ม.'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('ค่าเช่า: ${room['room_rate']} บาท/เดือน'),
-                      Text('เงินมัดจำ: ${room['room_deposit']} บาท'),
-                      Text('ผู้พักสูงสุด: ${room['room_max']} คน'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (room['room_des'] != null &&
-                room['room_des'].toString().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                room['room_des'],
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                      ],
+                    ),
+                ],
               ),
+              const SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildRoomInfoRow(
+                              'ประเภท',
+                              _getRoomCategoryText(room['room_cate']),
+                              Icons.category),
+                          SizedBox(height: 4),
+                          _buildRoomInfoRow('ชนิด',
+                              _getRoomTypeText(room['room_type']), Icons.bed),
+                          SizedBox(height: 4),
+                          _buildRoomInfoRow('ขนาด',
+                              '${room['room_size']} ตร.ม.', Icons.square_foot),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildRoomInfoRow('ค่าเช่า',
+                              '฿${room['room_rate']}/เดือน', Icons.money),
+                          SizedBox(height: 4),
+                          _buildRoomInfoRow('เงินมัดจำ',
+                              '฿${room['room_deposit']}', Icons.savings),
+                          SizedBox(height: 4),
+                          _buildRoomInfoRow('จำนวนที่พัก',
+                              '${room['room_max']} คน', Icons.people),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (room['room_des'] != null &&
+                  room['room_des'].toString().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Text(
+                    room['room_des'],
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.3,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRoomInfoRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[600]),
+        SizedBox(width: 6),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[800],
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
