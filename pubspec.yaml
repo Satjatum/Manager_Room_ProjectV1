@@ -20,18 +20,11 @@ dependencies:
 
   # Image Picker
   image_picker: ^1.1.2
-
-<<<<<<< HEAD
-  # File Picker
-  file_picker: ^8.1.2
-
+  
   # Image Compress
   flutter_image_compress: ^2.3.0
   
   # crypt 
-=======
-  # crypt
->>>>>>> d7a802ddf1558caee18503c52ac66002f40f4e15
   crypto: ^3.0.3
 
   # Shared Preferences

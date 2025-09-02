@@ -590,236 +590,205 @@ class _BranchlistUiState extends State<BranchlistUi> {
       shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => BranchDetailScreen(
-                branch: branch,
-              ),
+              builder: (context) => BranchDetailScreen(branch: branch),
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Branch Image
-            if (hasImage)
-              ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                child: Container(
-                  height: 200,
-                  width: double.infinity,
-                  child: Image.memory(
-                    base64Decode(branch['branch_image']),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 200,
-                        color: Colors.grey[200],
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.business,
-                                size: 50, color: Colors.grey[400]),
-                            SizedBox(height: 8),
-                            Text(
-                              'ไม่สามารถโหลดรูปภาพได้',
-                              style: TextStyle(color: Colors.grey[500]),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+            // ========= Cover =========
+            Stack(
+              children: [
+                // รูปปกสาขา
+                ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: SizedBox(
+                    height: 180,
+                    width: double.infinity,
+                    child: hasImage
+                        ? Image.memory(
+                            base64Decode(branch['branch_image']),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _imageFallback();
+                            },
+                          )
+                        : _imageFallback(),
                   ),
                 ),
-              ),
 
+                // ไล่เฉดมืดด้านล่างเพื่อให้ตัวอักษรอ่านง่าย
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.0),
+                            Colors.black.withOpacity(0.35),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ชื่อสาขา + สถานะ
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 12,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          branch['branch_name'] ?? 'ไม่มีชื่อ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 6,
+                                color: Colors.black54,
+                                offset: Offset(0, 1),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _pill(
+                        _getStatusText(status),
+                        bg: statusColor.withOpacity(.15),
+                        fg: statusColor,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // เมนูจัดการ (มุมขวาบน)
+                if (canManage)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: PopupMenuButton<String>(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        onSelected: (value) async {
+                          switch (value) {
+                            case 'edit':
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      EditBranchScreen(branch: branch),
+                                ),
+                              );
+                              if (result == true) await _loadBranches();
+                              break;
+                            case 'toggle_status':
+                              await _toggleBranchStatus(
+                                  branch['branch_id'], status);
+                              break;
+                            case 'delete':
+                              await _deleteBranch(
+                                  branch['branch_id'], branch['branch_name']);
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.edit, size: 20, color: Colors.green),
+                                SizedBox(width: 8),
+                                Text('แก้ไขสาขา',
+                                    style: TextStyle(color: Colors.green)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'toggle_status',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  status == 'active'
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  size: 20,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(status == 'active'
+                                    ? 'ปิดใช้งาน'
+                                    : 'เปิดใช้งาน'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.delete, size: 20, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('ลบสาขา',
+                                    style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // ========= Content =========
             Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              branch['branch_name'] ?? 'ไม่มีชื่อ',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: statusColor.withOpacity(0.3)),
-                              ),
-                              child: Text(
-                                _getStatusText(status),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (canManage)
-                        PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            switch (value) {
-                              case 'edit':
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => EditBranchScreen(
-                                      branch: branch,
-                                    ),
-                                  ),
-                                );
-                                if (result == true) {
-                                  await _loadBranches();
-                                }
-                                break;
-                              case 'toggle_status':
-                                await _toggleBranchStatus(
-                                    branch['branch_id'], status);
-                                break;
-                              case 'delete':
-                                await _deleteBranch(
-                                    branch['branch_id'], branch['branch_name']);
-                                break;
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.edit,
-                                    size: 20,
-                                    color: Colors.green,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'แก้ไขสาขา',
-                                    style: TextStyle(
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'toggle_status',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    status == 'active'
-                                        ? Icons.pause
-                                        : Icons.play_arrow,
-                                    size: 20,
-                                    color: Colors.orange,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(status == 'active'
-                                      ? 'ปิดใช้งาน'
-                                      : 'เปิดใช้งาน'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete,
-                                      size: 20, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('ลบสาขา',
-                                      style: TextStyle(color: Colors.red)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+                  _iconText(
+                    Icons.location_on,
+                    branch['branch_address'] ?? 'ไม่มีที่อยู่',
+                    color: Colors.grey[700],
+                    iconSize: 18,
+                    maxLines: 2,
                   ),
-
-                  SizedBox(height: 12),
-
-                  // Address
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.location_on,
-                          size: 16, color: Colors.grey[600]),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          branch['branch_address'] ?? 'ไม่มีที่อยู่',
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  _iconText(
+                    Icons.phone,
+                    branch['branch_phone'] ?? 'ไม่มีเบอร์โทร',
+                    color: Colors.grey[700],
                   ),
-
-                  SizedBox(height: 8),
-
-                  // Phone
-                  Row(
-                    children: [
-                      Icon(Icons.phone, size: 16, color: Colors.grey[600]),
-                      SizedBox(width: 8),
-                      Text(
-                        branch['branch_phone'] ?? 'ไม่มีเบอร์โทร',
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(height: 8),
-
-                  // Owner
-                  Row(
-                    children: [
-                      Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                      SizedBox(width: 8),
-                      Text(
-                        'เจ้าของ: ${branch['owner_name'] ?? 'ไม่ระบุ'}',
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  _iconText(
+                    Icons.person,
+                    'เจ้าของ: ${branch['owner_name'] ?? 'ไม่ระบุ'}',
+                    color: Colors.grey[700],
                   ),
 
                   if (branch['description'] != null &&
                       branch['description'].toString().isNotEmpty) ...[
-                    SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Text(
                       branch['description'],
                       style: TextStyle(
@@ -831,25 +800,27 @@ class _BranchlistUiState extends State<BranchlistUi> {
                     ),
                   ],
 
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
 
-                  // Footer
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'อัพเดท: ${_formatDate(branch['updated_at'])}',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 12,
+                  // ========= Footer =========
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'อัพเดท: ${_formatDate(branch['updated_at'])}',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey[400],
-                      ),
-                    ],
+                        Icon(Icons.arrow_forward_ios,
+                            size: 16, color: Colors.grey[400]),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -857,6 +828,71 @@ class _BranchlistUiState extends State<BranchlistUi> {
           ],
         ),
       ),
+    );
+  }
+
+// ---------- Helpers (ถ้ายังไม่มีในไฟล์ ให้วางเพิ่มได้เลย) ----------
+
+  Widget _imageFallback() {
+    return Container(
+      height: 180,
+      color: Colors.grey[200],
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.business, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 6),
+          Text('ไม่มีรูปสาขา',
+              style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String text, {required Color bg, required Color fg}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withOpacity(.25)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: fg,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _iconText(
+    IconData icon,
+    String text, {
+    Color? color,
+    double iconSize = 16,
+    int maxLines = 1,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: iconSize, color: color ?? Colors.grey[700]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color ?? Colors.grey[700],
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
