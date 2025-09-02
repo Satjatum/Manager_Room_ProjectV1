@@ -1,7 +1,6 @@
 name: manager_room_project
 description: "A new Flutter project."
-publish_to: 'none'
-
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -13,15 +12,16 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Supabase   
+  # Supabase
   supabase_flutter: ^2.9.1
-  
+
   # Flutter Secure Storage
   flutter_secure_storage: ^9.2.4
 
   # Image Picker
   image_picker: ^1.1.2
 
+<<<<<<< HEAD
   # File Picker
   file_picker: ^8.1.2
 
@@ -29,6 +29,9 @@ dependencies:
   flutter_image_compress: ^2.3.0
   
   # crypt 
+=======
+  # crypt
+>>>>>>> d7a802ddf1558caee18503c52ac66002f40f4e15
   crypto: ^3.0.3
 
   # Shared Preferences
@@ -39,7 +42,8 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
-
 flutter:
   uses-material-design: true
-
+  assets:
+    - assets/images/
+    - assets/icons/

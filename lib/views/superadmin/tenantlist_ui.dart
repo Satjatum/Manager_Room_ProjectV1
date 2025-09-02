@@ -141,7 +141,6 @@ class _TenantListScreenState extends State<TenantlistUi> {
   @override
   Widget build(BuildContext context) {
     final currentUser = AuthService.getCurrentUser();
-    final canManage = currentUser?.isSuperAdmin ?? false;
     final canAdd = currentUser?.isSuperAdmin ?? currentUser?.isAdmin ?? false;
     return Scaffold(
       appBar: AppBar(
@@ -465,76 +464,65 @@ class _TenantListScreenState extends State<TenantlistUi> {
     final isExpiringSoon = tenantOut.difference(DateTime.now()).inDays <= 30;
 
     return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: 1.5,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _showTenantDetails(tenant),
-        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              // ---------- Header ----------
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Avatar อักษรย่อ
+                  _avatarFromName(tenant['tenant_full_name']),
+                  const SizedBox(width: 12),
+                  // ชื่อ + โทร
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           tenant['tenant_full_name'],
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.phone,
-                                size: 14, color: Colors.grey[600]),
-                            SizedBox(width: 4),
-                            Text(
-                              tenant['tenant_phone'],
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: 6),
+                        _iconText(Icons.phone, tenant['tenant_phone'],
+                            color: Colors.grey[700]),
                       ],
                     ),
                   ),
+                  // Badge สถานะ + ใกล้หมดสัญญา
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _buildStatusBadge(status),
                       if (isExpiringSoon && status == 'active') ...[
-                        SizedBox(height: 4),
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'ใกล้หมดสัญญา',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.orange[700],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
+                        const SizedBox(height: 6),
+                        _pill('ใกล้หมดสัญญา',
+                            bg: Colors.orange.withOpacity(.12),
+                            fg: Colors.orange[800]),
                       ],
                     ],
                   ),
                 ],
               ),
 
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
 
-              // ข้อมูลห้องและรหัส
+              // ---------- Room / Rate / Code ----------
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -542,125 +530,198 @@ class _TenantListScreenState extends State<TenantlistUi> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.home,
-                                size: 14, color: AppColors.primary),
-                            SizedBox(width: 4),
-                            Text(
-                              'ห้อง ${tenant['room_number']} - ${room['room_name']}',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ],
+                        _iconText(
+                          Icons.home,
+                          'ห้อง ${tenant['room_number']} - ${room['room_name']}',
+                          color: AppColors.primary,
+                          iconSize: 16,
+                          weight: FontWeight.w600,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           '${room['room_rate']} บาท/เดือน',
                           style: TextStyle(
                             color: Colors.green[700],
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
                   if (hasCode)
-                    Expanded(
-                      child: Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
+                    Container(
+                      margin: const EdgeInsets.only(left: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.15),
                         ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.qr_code,
-                                size: 16, color: AppColors.primary),
-                            SizedBox(height: 2),
-                            Text(
-                              tenant['tenant_code'],
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
-                                color: AppColors.primary,
-                              ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.qr_code,
+                              size: 18, color: AppColors.primary),
+                          const SizedBox(height: 4),
+                          Text(
+                            tenant['tenant_code'],
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                              color: AppColors.primary,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
               ),
 
-              SizedBox(height: 12),
-
-              // วันที่เข้าพักและออก
+              // ---------- Dates + menu ----------
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    child: Row(
-                      children: [
-                        Icon(Icons.login, size: 14, color: Colors.grey[600]),
-                        SizedBox(width: 4),
-                        Text(
-                          '${tenantIn.day}/${tenantIn.month}/${tenantIn.year}',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
+                    child: _iconText(
+                      Icons.login,
+                      _formatDate(tenantIn),
+                      color: Colors.grey[700],
+                      iconSize: 16,
                     ),
                   ),
                   Expanded(
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout, size: 14, color: Colors.grey[600]),
-                        SizedBox(width: 4),
-                        Text(
-                          '${tenantOut.day}/${tenantOut.month}/${tenantOut.year}',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
+                    child: _iconText(
+                      Icons.logout,
+                      _formatDate(tenantOut),
+                      color: Colors.grey[700],
+                      iconSize: 16,
                     ),
                   ),
-                  // ปุ่มเปลี่ยนสถานะ
                   InkWell(
                     onTap: () => _showStatusUpdateDialog(tenant),
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      padding: EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(Icons.more_vert,
-                          size: 16, color: Colors.grey[600]),
+                          size: 18, color: Colors.grey[700]),
                     ),
                   ),
                 ],
               ),
 
-              // ไอคอนสถานะ
-              SizedBox(height: 8),
-              Row(
+              // ---------- Footer chips ----------
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  if (hasAccount) ...[
-                    Icon(Icons.account_circle, size: 16, color: Colors.blue),
-                    SizedBox(width: 4),
-                    Text('มีบัญชี',
-                        style: TextStyle(fontSize: 11, color: Colors.blue)),
-                    SizedBox(width: 12),
-                  ],
-                  if (tenant['last_access_at'] != null) ...[
-                    Icon(Icons.access_time, size: 16, color: Colors.green),
-                    SizedBox(width: 4),
-                    Text('เข้าใช้งาน',
-                        style: TextStyle(fontSize: 11, color: Colors.green)),
-                  ],
+                  if (hasAccount)
+                    _chip(
+                        icon: Icons.account_circle,
+                        label: 'มีบัญชี',
+                        fg: Colors.blue),
+                  if (tenant['last_access_at'] != null)
+                    _chip(
+                        icon: Icons.access_time,
+                        label: 'เข้าใช้งาน',
+                        fg: Colors.green),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+// =================== Helpers (ไม่พึ่งแพ็กเกจเพิ่ม) ===================
+
+  Widget _iconText(IconData icon, String text,
+      {Color? color, double iconSize = 14, FontWeight? weight}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: iconSize, color: color ?? Colors.grey[600]),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: color ?? Colors.grey[600],
+              fontWeight: weight,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill(String text, {Color? bg, Color? fg}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg ?? Colors.black12,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, color: fg ?? Colors.black87),
+      ),
+    );
+  }
+
+  Widget _chip({required IconData icon, required String label, Color? fg}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: (fg ?? Colors.grey).withOpacity(.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: (fg ?? Colors.grey).withOpacity(.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: fg ?? Colors.grey[800]),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: fg ?? Colors.grey[800])),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarFromName(String name) {
+    final initials = name.trim().isEmpty
+        ? '?'
+        : name
+            .trim()
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((e) => e[0])
+            .join()
+            .toUpperCase();
+    // สีสุ่มนิดหน่อยแต่คุมโทนใกล้ AppColors.primary
+    final seed = name.hashCode;
+    final hue = (seed % 360).toDouble();
+    final color = HSLColor.fromAHSL(1, hue, 0.45, 0.65).toColor();
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: color.withOpacity(.15),
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -1064,6 +1125,13 @@ class _TenantListScreenState extends State<TenantlistUi> {
       default:
         return status;
     }
+  }
+
+  String _formatDate(DateTime d) {
+    // 02/08/2025
+    return '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}/'
+        '${d.year}';
   }
 
   String _formatDateTime(DateTime dateTime) {
