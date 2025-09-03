@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:manager_room_project/widget/appbuttomnav.dart';
 
 class UserdashUi extends StatefulWidget {
   const UserdashUi({super.key});
@@ -21,6 +22,7 @@ class _UserdashUiState extends State<UserdashUi> {
           ],
         ),
       ),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
     );
   }
 }

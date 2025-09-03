@@ -713,7 +713,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AddRoomScreen(
+                builder: (context) => AddRoomUI(
                   branchId: _branchData['branch_id'],
                   branchName: _branchData['branch_name'],
                 ),
@@ -1306,7 +1306,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AddRoomScreen(
+                    builder: (context) => AddRoomUI(
                       branchId: _branchData['branch_id'],
                       branchName: _branchData['branch_name'],
                     ),

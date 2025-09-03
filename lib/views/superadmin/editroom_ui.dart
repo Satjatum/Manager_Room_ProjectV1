@@ -6,16 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:manager_room_project/widget/appcolors.dart';
 import 'package:manager_room_project/views/superadmin/roomdetail_ui.dart';
 
-class AddRoomUI extends StatefulWidget {
-  final String branchId; // ต้องใส่รหัสสาขาเพื่อผูกห้อง
-  final String? branchName; // ชื่อสาขา (ถ้ามี)
-  final String? ownerId; // ผู้สร้าง (ถ้ามี)
-  const AddRoomUI(
-      {Key? key, required this.branchId, this.branchName, this.ownerId})
-      : super(key: key);
+class EditRoomUI extends StatefulWidget {
+  final Map<String, dynamic> room; // รับข้อมูลห้องจากหน้าเดิม
+  const EditRoomUI({Key? key, required this.room}) : super(key: key);
 
   @override
-  State<AddRoomUI> createState() => _AddRoomUIState();
+  State<EditRoomUI> createState() => _EditRoomUIState();
 }
 
 class _RoomImage {
@@ -33,17 +29,15 @@ class _OptionItem {
   final String name; // *_name
   final String? color; // เฉพาะบางตาราง
   final String? icon;
-  final int? defaultMax; // เฉพาะ room_types
   _OptionItem(
       {required this.id,
       required this.code,
       required this.name,
       this.color,
-      this.icon,
-      this.defaultMax});
+      this.icon});
 }
 
-class _AddRoomUIState extends State<AddRoomUI> {
+class _EditRoomUIState extends State<EditRoomUI> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
   bool _isLoadingOptions = false;
@@ -76,6 +70,24 @@ class _AddRoomUIState extends State<AddRoomUI> {
   @override
   void initState() {
     super.initState();
+    // Prefill fields จากข้อมูลเดิม
+    _roomNumberController.text = (widget.room['room_number'] ?? '').toString();
+    _roomNameController.text = (widget.room['room_name'] ?? '').toString();
+    _roomRateController.text = (widget.room['room_rate'] ?? '').toString();
+    _roomDepositController.text =
+        (widget.room['room_deposit'] ?? '').toString();
+    _roomSizeController.text = (widget.room['room_size'] ?? '').toString();
+    _roomDescriptionController.text =
+        (widget.room['room_des'] ?? '').toString();
+
+    // รองรับทั้ง id และ code เดิม
+    _selectedCategoryId = widget.room['category_id']?.toString();
+    _selectedTypeId = widget.room['type_id']?.toString();
+    _selectedStatusId = widget.room['status_id']?.toString();
+
+    _initFacilitiesFromRoom();
+    _initImagesFromRoom();
+
     _loadMasterOptions();
   }
 
@@ -124,7 +136,6 @@ class _AddRoomUIState extends State<AddRoomUI> {
                 code: e['type_code'].toString(),
                 name: e['type_name'].toString(),
                 icon: e['type_icon']?.toString(),
-                defaultMax: e['default_max_occupants'] as int?,
               ))
           .toList();
       _statuses = (statusRows as List)
@@ -145,15 +156,17 @@ class _AddRoomUIState extends State<AddRoomUI> {
               ))
           .toList();
 
-      setState(() {
-        _selectedStatusId = _statuses.isNotEmpty
-            ? _statuses.first.id
-            : null; // ค่าเริ่มต้นเป็นสถานะแรก (เช่น available)
-        _selectedCategoryId =
-            _categories.isNotEmpty ? _categories.first.id : null;
-        _selectedTypeId = _types.isNotEmpty ? _types.first.id : null;
-      });
+      // ถ้ายังไม่มี *_id ในข้อมูลเดิม ลอง mapping จาก code เดิม (room_cate, room_type, room_status)
+      _selectedCategoryId ??=
+          _matchIdByCode(_categories, widget.room['room_cate']?.toString());
+      _selectedTypeId ??=
+          _matchIdByCode(_types, widget.room['room_type']?.toString());
+      _selectedStatusId ??=
+          _matchIdByCode(_statuses, widget.room['room_status']?.toString());
+
+      setState(() {});
     } catch (e) {
+      // ถ้าดึง options ไม่ได้ ให้แสดงแบบข้อความแจ้งเตือนอ่อน ๆ แต่ยังใช้งานฟอร์มได้
       debugPrint('Load master options error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +178,87 @@ class _AddRoomUIState extends State<AddRoomUI> {
     } finally {
       if (mounted) setState(() => _isLoadingOptions = false);
     }
+  }
+
+  String? _matchIdByCode(List<_OptionItem> items, String? code) {
+    if (code == null) return null;
+    try {
+      return items.firstWhere((x) => x.code == code).id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _initFacilitiesFromRoom() {
+    try {
+      final fac = widget.room['room_fac'];
+      if (fac is List) {
+        // รับได้ทั้ง facility_code หรือ facility_name
+        _selectedFacilityCodes.addAll(fac.map((e) => e.toString()));
+      } else if (fac is String && fac.isNotEmpty) {
+        final parsed = jsonDecode(fac);
+        if (parsed is List) {
+          _selectedFacilityCodes.addAll(parsed.map((e) => e.toString()));
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _initImagesFromRoom() {
+    final imgs = widget.room['room_images'];
+    if (imgs == null) return;
+    try {
+      if (imgs is List) {
+        for (final it in imgs) {
+          _addImageFromDynamic(it);
+        }
+      } else if (imgs is String) {
+        final parsed = _tryJsonDecode(imgs);
+        if (parsed is List) {
+          for (final it in parsed) {
+            _addImageFromDynamic(it);
+          }
+        } else {
+          _addImageFromDynamic(imgs);
+        }
+      }
+      setState(() {});
+    } catch (_) {}
+  }
+
+  dynamic _tryJsonDecode(String s) {
+    try {
+      return jsonDecode(s);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isHttpUrl(String s) =>
+      s.startsWith('http://') || s.startsWith('https://');
+  String _stripDataUriPrefix(String s) =>
+      s.contains(',') && s.startsWith('data:') ? s.split(',').last : s;
+
+  void _addImageFromDynamic(dynamic it) {
+    if (it == null) return;
+    if (it is Uint8List) {
+      _images.add(_RoomImage.bytes(it));
+      return;
+    }
+    if (it is Map && it['url'] != null) {
+      final u = it['url'].toString();
+      if (_isHttpUrl(u)) _images.add(_RoomImage.url(u));
+      return;
+    }
+    final s = it.toString();
+    if (_isHttpUrl(s)) {
+      _images.add(_RoomImage.url(s));
+      return;
+    }
+    final b64 = _stripDataUriPrefix(s);
+    try {
+      _images.add(_RoomImage.bytes(base64Decode(b64)));
+    } catch (_) {}
   }
 
   // ---------------- UI ----------------
@@ -198,7 +292,7 @@ class _AddRoomUIState extends State<AddRoomUI> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('เพิ่มห้องใหม่',
+        title: const Text('แก้ไขข้อมูลห้อง',
             style: TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -308,15 +402,16 @@ class _AddRoomUIState extends State<AddRoomUI> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
+                  onPressed: _isSaving || !_hasChanges ? null : _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor:
+                        _hasChanges ? AppColors.primary : Colors.grey,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('เพิ่มห้อง',
+                  child: const Text('บันทึกการเปลี่ยนแปลง',
                       style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
@@ -352,10 +447,7 @@ class _AddRoomUIState extends State<AddRoomUI> {
         items: items
             .map((e) => DropdownMenuItem(value: e.id, child: Text(e.name)))
             .toList(),
-        onChanged: (v) {
-          onChanged(v);
-          _markChanged();
-        },
+        onChanged: onChanged,
         validator: (v) => (v == null || v.isEmpty) ? 'กรุณาเลือก$label' : null,
       );
     };
@@ -368,14 +460,20 @@ class _AddRoomUIState extends State<AddRoomUI> {
             ddStyle(
                 'หมวดหมู่ห้อง', Icons.layers, _selectedCategoryId, _categories,
                 (v) {
-              setState(() => _selectedCategoryId = v);
+              setState(() {
+                _selectedCategoryId = v;
+                _markChanged();
+              });
             })),
         const SizedBox(height: 16),
         _labeled(
             'ประเภทห้อง *',
             ddStyle('ประเภทห้อง', Icons.apartment, _selectedTypeId, _types,
                 (v) {
-              setState(() => _selectedTypeId = v);
+              setState(() {
+                _selectedTypeId = v;
+                _markChanged();
+              });
             })),
         const SizedBox(height: 16),
         _labeled(
@@ -383,7 +481,10 @@ class _AddRoomUIState extends State<AddRoomUI> {
             ddStyle(
                 'สถานะห้อง', Icons.info_outline, _selectedStatusId, _statuses,
                 (v) {
-              setState(() => _selectedStatusId = v);
+              setState(() {
+                _selectedStatusId = v;
+                _markChanged();
+              });
             })),
       ],
     );
@@ -414,15 +515,13 @@ class _AddRoomUIState extends State<AddRoomUI> {
             spacing: 8,
             runSpacing: 8,
             children: _facilities.map((f) {
-              final selected = _selectedFacilityCodes.contains(f.code);
+              final selected = _isFacilitySelected(f);
               return FilterChip(
                 label: Text(f.name, style: const TextStyle(fontSize: 12)),
                 selected: selected,
                 onSelected: (v) {
                   setState(() {
-                    v
-                        ? _selectedFacilityCodes.add(f.code)
-                        : _selectedFacilityCodes.remove(f.code);
+                    v ? _selectFacility(f) : _unselectFacility(f);
                     _markChanged();
                   });
                 },
@@ -440,6 +539,24 @@ class _AddRoomUIState extends State<AddRoomUI> {
           ),
       ],
     );
+  }
+
+  bool _isFacilitySelected(_OptionItem f) {
+    // รองรับทั้งกรณีเก่าที่เก็บเป็นชื่อ และกรณีใหม่ที่เก็บเป็น code
+    return _selectedFacilityCodes.contains(f.code) ||
+        _selectedFacilityCodes.contains(f.name);
+  }
+
+  void _selectFacility(_OptionItem f) {
+    _selectedFacilityCodes
+      ..remove(f.name)
+      ..add(f.code);
+  }
+
+  void _unselectFacility(_OptionItem f) {
+    _selectedFacilityCodes
+      ..remove(f.code)
+      ..remove(f.name);
   }
 
   Widget _labeled(String label, Widget child) => Column(
@@ -521,32 +638,6 @@ class _AddRoomUIState extends State<AddRoomUI> {
     );
   }
 
-  Widget _roundIcon({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: Colors.white, size: 16),
-      ),
-    );
-  }
-
   Widget _buildImageTile(_RoomImage img) {
     const w = 140.0;
     const h = 120.0;
@@ -606,13 +697,30 @@ class _AddRoomUIState extends State<AddRoomUI> {
     );
   }
 
+  Widget _roundIcon(
+      {required IconData icon,
+      required Color color,
+      required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+          width: 28,
+          height: 28,
+          decoration:
+              BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2))
+          ]),
+          child: Icon(icon, color: Colors.white, size: 16)),
+    );
+  }
+
   // ---------------- Actions ----------------
   void _markChanged() {
     if (!_hasChanges) setState(() => _hasChanges = true);
   }
-
-  bool _isHttpUrl(String s) =>
-      s.startsWith('http://') || s.startsWith('https://');
 
   Future<void> _pickImages() async {
     final files = await _picker.pickMultiImage(imageQuality: 85);
@@ -624,20 +732,11 @@ class _AddRoomUIState extends State<AddRoomUI> {
     setState(() {});
   }
 
-  String? _codeById(List<_OptionItem> list, String? id) {
-    if (id == null) return null;
-    try {
-      return list.firstWhere((e) => e.id == id).code;
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     try {
-      // รวมรูป: bytes -> base64 (ถ้ามี URL ในอนาคตสามารถรองรับได้เช่นกัน)
+      // รวมรูป: bytes -> base64, URL คงเดิม
       final imageList = _images
           .map((e) {
             if (e.bytes != null) return base64Encode(e.bytes!);
@@ -648,16 +747,8 @@ class _AddRoomUIState extends State<AddRoomUI> {
           .toList();
 
       final payload = {
-        // ข้อมูลผูกสาขา
-        'branch_id': widget.branchId,
-        if (widget.branchName != null) 'branch_name': widget.branchName,
-        if (widget.ownerId != null) 'owner_id': widget.ownerId,
-
-        // ห้อง
         'room_number': _roomNumberController.text.trim(),
-        'room_name': _roomNameController.text.trim().isEmpty
-            ? null
-            : _roomNameController.text.trim(),
+        'room_name': _roomNameController.text.trim(),
         'room_rate': double.tryParse(_roomRateController.text.trim()),
         'room_deposit': double.tryParse(_roomDepositController.text.trim()),
         'room_size': _roomSizeController.text.trim().isEmpty
@@ -666,34 +757,27 @@ class _AddRoomUIState extends State<AddRoomUI> {
         'room_des': _roomDescriptionController.text.trim().isEmpty
             ? null
             : _roomDescriptionController.text.trim(),
-
         // คีย์ใหม่ตาม schema
         'category_id': _selectedCategoryId,
         'type_id': _selectedTypeId,
         'status_id': _selectedStatusId,
-
         // คีย์เดิม (optional) เพื่อ backward compatibility
         'room_cate': _codeById(_categories, _selectedCategoryId),
         'room_type': _codeById(_types, _selectedTypeId),
         'room_status': _codeById(_statuses, _selectedStatusId),
-
         // facilities เก็บเป็น code array
         'room_fac': _selectedFacilityCodes.toList(),
-
         // images
         'room_images': imageList,
-
-        // meta
-        'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      // TODO: เรียก insert จริง
-      // await supabase.from('rooms').insert(payload);
+      // TODO: เรียกอัปเดตจริง
+      // await supabase.from('rooms').update(payload).eq('room_id', widget.room['room_id']);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('เพิ่มห้องสำเร็จ'), backgroundColor: Colors.green));
+            content: Text('บันทึกสำเร็จ'), backgroundColor: Colors.green));
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -703,6 +787,15 @@ class _AddRoomUIState extends State<AddRoomUI> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String? _codeById(List<_OptionItem> list, String? id) {
+    if (id == null) return null;
+    try {
+      return list.firstWhere((e) => e.id == id).code;
+    } catch (_) {
+      return null;
     }
   }
 

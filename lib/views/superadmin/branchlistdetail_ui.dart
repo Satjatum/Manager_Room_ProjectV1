@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:manager_room_project/views/superadmin/addroom_ui.dart';
+import 'package:manager_room_project/views/superadmin/editroom_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomdetail_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:manager_room_project/widget/appcolors.dart';
 import 'package:manager_room_project/services/auth_service.dart';
 import 'package:manager_room_project/views/superadmin/editbranch_ui.dart';
-import 'package:manager_room_project/views/superadmin/addroom_ui.dart';
 
 class BranchDetailScreen extends StatefulWidget {
   final Map<String, dynamic> branch;
@@ -501,23 +502,46 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     }
   }
 
-  // Check if user can manage this branch
   bool _canManageBranch() {
     final currentUser = AuthService.getCurrentUser();
-    return currentUser?.isSuperAdmin ??
-        false ||
-            (currentUser?.isAdmin ??
-                false && currentUser?.userId == _branchData['owner_id']);
+    if (currentUser?.isSuperAdmin ?? false) return true;
+
+    if (currentUser?.isAdmin ?? false) {
+      final userId = currentUser!.userId;
+      final userBranchId = currentUser.branchId;
+      final branchOwnerId = _branchData['owner_id'];
+      final branchId = _branchData['branch_id'];
+      return (userId != null && userId == branchOwnerId) ||
+          (userBranchId != null && userBranchId == branchId);
+    }
+
+    return false;
   }
 
-  // Check if user can add rooms to this branch
   bool _canAddRooms() {
     final currentUser = AuthService.getCurrentUser();
-    // SuperAdmin can add to any branch, Admin can add only to their own branch
-    return currentUser?.isSuperAdmin ??
-        false ||
-            (currentUser?.isAdmin ??
-                false && currentUser?.userId == _branchData['owner_id']);
+
+    if (currentUser?.isSuperAdmin ?? false) return true;
+
+    if (currentUser?.isAdmin ?? false) {
+      final userId = currentUser!.userId;
+      final userBranchId = currentUser.branchId;
+      final branchOwnerId = _branchData['owner_id'];
+      final branchId = _branchData['branch_id'];
+      return (userId != null && userId == branchOwnerId) ||
+          (userBranchId != null && userBranchId == branchId);
+    }
+
+    return false;
+  }
+
+  bool _canEditBranch() {
+    final currentUser = AuthService.getCurrentUser();
+    if (currentUser?.isSuperAdmin ?? false) return true;
+    if (currentUser?.isAdmin ?? false) {
+      return currentUser!.userId == _branchData['owner_id'];
+    }
+    return false;
   }
 
   @override
@@ -742,15 +766,23 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                     onSelected: (value) async {
                       switch (value) {
                         case 'edit':
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  EditBranchScreen(branch: _branchData),
-                            ),
-                          );
-                          if (result == true) {
-                            await _loadBranchDetails();
+                          if (_canEditBranch()) {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    EditBranchScreen(branch: _branchData),
+                              ),
+                            );
+                            if (result == true) {
+                              await _loadBranchDetails();
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text('คุณไม่มีสิทธิ์แก้ไขสาขานี้'),
+                                  backgroundColor: Colors.red),
+                            );
                           }
                           break;
                         case 'toggle_status':
@@ -762,16 +794,17 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                       }
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 20, color: Colors.green),
-                            SizedBox(width: 8),
-                            Text('แก้ไข'),
-                          ],
+                      if (_canEditBranch())
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, size: 20, color: Colors.green),
+                              SizedBox(width: 8),
+                              Text('แก้ไข'),
+                            ],
+                          ),
                         ),
-                      ),
                       PopupMenuItem(
                         value: 'toggle_status',
                         child: Row(
@@ -904,7 +937,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => AddRoomScreen(
+            builder: (context) => AddRoomUI(
               branchId: _branchData['branch_id'],
               branchName: _branchData['branch_name'],
             ),
@@ -1515,7 +1548,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AddRoomScreen(
+                      builder: (context) => AddRoomUI(
                         branchId: _branchData['branch_id'],
                         branchName: _branchData['branch_name'],
                       ),
@@ -1627,16 +1660,22 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                       onSelected: (value) async {
                         switch (value) {
                           case 'edit':
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    RoomDetailScreen(room: room),
-                              ),
-                            );
-                            if (result == true) {
-                              await _loadRoomData();
-                              await _loadBranchStats();
+                            if (_canEditBranch()) {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => EditRoomUI(room: room),
+                                ),
+                              );
+                              if (result == true) {
+                                await _loadBranchDetails();
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('คุณไม่มีสิทธิ์แก้ไขสาขานี้'),
+                                    backgroundColor: Colors.red),
+                              );
                             }
                             break;
                           case 'toggle_status':
@@ -1653,9 +1692,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                           value: 'edit',
                           child: Row(
                             children: [
-                              Icon(Icons.edit, size: 20, color: Colors.blue),
+                              Icon(Icons.edit, size: 20, color: Colors.green),
                               SizedBox(width: 8),
-                              Text('ดูรายละเอียด'),
+                              Text('แก้ไขห้อง'),
                             ],
                           ),
                         ),

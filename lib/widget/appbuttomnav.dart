@@ -8,7 +8,6 @@ import 'package:manager_room_project/views/superadmin/reportmanagement_ui.dart';
 import 'package:manager_room_project/views/superadmin/setting_ui.dart';
 import 'package:manager_room_project/views/superadmin/superadmindash_ui.dart';
 import 'package:manager_room_project/views/admin/admindash_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenantlist_screen.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantreport_ui.dart';
 import 'package:manager_room_project/views/user/userdash_ui.dart';
@@ -47,7 +46,7 @@ class AppBottomNav extends StatelessWidget {
       pages = [
         const AdmindashUi(), // 0: Dashboard
         const BranchlistUi(), // 1: สาขา (เฉพาะสาขาตัวเอง)
-        const TenantListScreen(), // 2: ผู้เช่า
+        const TenantlistUi(), // 2: ผู้เช่า
         const IssueManagementScreen(), // 3: แจ้งเตือน
         const CreateBillScreen(), // 4: ออกบิล
         const SettingUi(), // 5: ตั้งค่า
@@ -56,8 +55,8 @@ class AppBottomNav extends StatelessWidget {
       pages = [
         const UserdashUi(), // 0: Dashboard
         const BranchlistUi(), // 1: สาขา (อ่านอย่างเดียว)
-        const AddTenantScreen(), // 2: ผู้เช่า (อ่านอย่างเดียว)
-        const NotificationScreen(), // 3: แจ้งเตือน
+        const TenantlistUi(), // 2: ผู้เช่า (อ่านอย่างเดียว)
+        const IssueManagementScreen(), // 3: แจ้งเตือน
         const SettingUi(), // 4: ตั้งค่า
       ];
     } else if (currentUser.isTenant) {
