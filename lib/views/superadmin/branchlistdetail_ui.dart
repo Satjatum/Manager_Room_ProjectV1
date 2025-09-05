@@ -31,6 +31,12 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   List<Map<String, dynamic>> _rooms = [];
   List<Map<String, dynamic>> _filteredRooms = [];
 
+  // Lookup tables สำหรับแปลงค่า
+  Map<String, Map<String, dynamic>> _roomCategories = {};
+  Map<String, Map<String, dynamic>> _roomTypes = {};
+  Map<String, Map<String, dynamic>> _roomStatuses = {};
+  List<Map<String, dynamic>> _roomFacilities = [];
+
   bool _isLoading = false;
   bool _isLoadingRooms = false;
   String _searchQuery = '';
@@ -46,6 +52,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     'occupied_rooms': 0,
     'available_rooms': 0,
     'maintenance_rooms': 0,
+    'reserved_rooms': 0,
+    'cleaning_rooms': 0,
+    'renovation_rooms': 0,
     'total_tenants': 0,
     'monthly_revenue': 0.0,
     'pending_payments': 0,
@@ -56,9 +65,96 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _branchData = Map<String, dynamic>.from(widget.branch);
-    _loadBranchDetails();
-    _loadBranchStats();
-    _loadRoomData();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _loadLookupTables();
+    await _loadBranchDetails();
+    await _loadBranchStats();
+    await _loadRoomData();
+  }
+
+  // โหลดตารางข้อมูลพื้นฐาน
+  Future<void> _loadLookupTables() async {
+    try {
+      // โหลดหมวดหมู่ห้อง
+      final categoriesResponse = await supabase
+          .from('room_categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
+
+      for (var category in categoriesResponse) {
+        _roomCategories[category['category_code']] = category;
+      }
+
+      // โหลดประเภทห้อง
+      final typesResponse = await supabase
+          .from('room_types')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
+
+      for (var type in typesResponse) {
+        _roomTypes[type['type_code']] = type;
+      }
+
+      // โหลดสถานะห้อง
+      final statusesResponse = await supabase
+          .from('room_status_types')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
+
+      for (var status in statusesResponse) {
+        _roomStatuses[status['status_code']] = status;
+      }
+
+      // โหลดสิ่งอำนวยความสะดวก
+      final facilitiesResponse = await supabase
+          .from('room_facilities')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
+
+      _roomFacilities = List<Map<String, dynamic>>.from(facilitiesResponse);
+    } catch (e) {
+      print('Error loading lookup tables: $e');
+      // ใช้ค่าเริ่มต้นถ้าโหลดไม่ได้
+      _setupDefaultLookupTables();
+    }
+  }
+
+  void _setupDefaultLookupTables() {
+    // หมวดหมู่เริ่มต้น
+    _roomCategories = {
+      'economy': {'category_name': 'ประหยัด', 'category_color': '#FF9800'},
+      'standard': {'category_name': 'มาตรฐาน', 'category_color': '#2196F3'},
+      'deluxe': {'category_name': 'ดีลักซ์', 'category_color': '#9C27B0'},
+      'premium': {'category_name': 'พรีเมี่ยม', 'category_color': '#E91E63'},
+      'vip': {'category_name': 'วีไอพี', 'category_color': '#F44336'},
+    };
+
+    // ประเภทเริ่มต้น
+    _roomTypes = {
+      'single': {'type_name': 'เดี่ยว'},
+      'twin': {'type_name': 'แฝด'},
+      'double': {'type_name': 'คู่'},
+      'family': {'type_name': 'ครอบครัว'},
+      'studio': {'type_name': 'สตูดิโอ'},
+      'suite': {'type_name': 'สวีท'},
+    };
+
+    // สถานะเริ่มต้น
+    _roomStatuses = {
+      'available': {'status_name': 'ว่าง', 'status_color': '#4CAF50'},
+      'occupied': {'status_name': 'มีผู้เช่า', 'status_color': '#2196F3'},
+      'maintenance': {'status_name': 'ซ่อมบำรุง', 'status_color': '#FF9800'},
+      'reserved': {'status_name': 'จอง', 'status_color': '#9C27B0'},
+      'cleaning': {'status_name': 'ทำความสะอาด', 'status_color': '#FFC107'},
+      'renovation': {'status_name': 'ปรับปรุง', 'status_color': '#795548'},
+    };
   }
 
   Future<void> _loadBranchDetails() async {
@@ -116,10 +212,10 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
 
   Future<void> _loadBranchStats() async {
     try {
-      // โหลดสถิติห้อง จาก rooms table
+      // โหลดสถิติห้อง จาก rooms table และ room_details view
       final roomsResponse = await supabase
-          .from('rooms')
-          .select('room_status')
+          .from('room_details')
+          .select('status_code')
           .eq('branch_id', _branchData['branch_id']);
 
       // โหลดสถิติผู้เช่า จาก tenants table
@@ -139,16 +235,25 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           .eq('branch_id', _branchData['branch_id'])
           .gte('created_at', firstDayOfMonth.toIso8601String());
 
-      // คำนวดสถิติ
+      // คำนวณสถิติ
       final totalRooms = roomsResponse.length;
       final occupiedRooms = roomsResponse
-          .where((room) => room['room_status'] == 'occupied')
+          .where((room) => room['status_code'] == 'occupied')
           .length;
       final availableRooms = roomsResponse
-          .where((room) => room['room_status'] == 'available')
+          .where((room) => room['status_code'] == 'available')
           .length;
       final maintenanceRooms = roomsResponse
-          .where((room) => room['room_status'] == 'maintenance')
+          .where((room) => room['status_code'] == 'maintenance')
+          .length;
+      final reservedRooms = roomsResponse
+          .where((room) => room['status_code'] == 'reserved')
+          .length;
+      final cleaningRooms = roomsResponse
+          .where((room) => room['status_code'] == 'cleaning')
+          .length;
+      final renovationRooms = roomsResponse
+          .where((room) => room['status_code'] == 'renovation')
           .length;
 
       final totalTenants = tenantsResponse.length;
@@ -170,6 +275,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           'occupied_rooms': occupiedRooms,
           'available_rooms': availableRooms,
           'maintenance_rooms': maintenanceRooms,
+          'reserved_rooms': reservedRooms,
+          'cleaning_rooms': cleaningRooms,
+          'renovation_rooms': renovationRooms,
           'total_tenants': totalTenants,
           'monthly_revenue': monthlyRevenue,
           'pending_payments': pendingPayments,
@@ -183,6 +291,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           'occupied_rooms': 0,
           'available_rooms': 0,
           'maintenance_rooms': 0,
+          'reserved_rooms': 0,
+          'cleaning_rooms': 0,
+          'renovation_rooms': 0,
           'total_tenants': 0,
           'monthly_revenue': 0.0,
           'pending_payments': 0,
@@ -197,9 +308,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
     });
 
     try {
-      // โหลดห้องทั้งหมดของสาขา
+      // โหลดข้อมูลห้องจาก room_details view ที่มีข้อมูลครบถ้วน
       final roomsResponse = await supabase
-          .from('rooms')
+          .from('room_details')
           .select('*')
           .eq('branch_id', _branchData['branch_id'])
           .order('room_number');
@@ -212,13 +323,30 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
       _filterRooms();
     } catch (e) {
       print('Error loading rooms: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาดในการโหลดข้อมูลห้อง: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      // Fallback: โหลดจาก rooms table แบบเดิม
+      try {
+        final fallbackResponse = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('branch_id', _branchData['branch_id'])
+            .order('room_number');
+
+        setState(() {
+          _rooms = List<Map<String, dynamic>>.from(fallbackResponse);
+          _filteredRooms = _rooms;
+        });
+
+        _filterRooms();
+      } catch (fallbackError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'เกิดข้อผิดพลาดในการโหลดข้อมูลห้อง: ${fallbackError.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       setState(() {
@@ -261,11 +389,15 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                 .toLowerCase()
                 .contains(searchTerm);
 
-        final matchesStatus = _selectedRoomStatus == 'all' ||
-            room['room_status'] == _selectedRoomStatus;
+        // ใช้ status_code สำหรับ database ใหม่ หรือ room_status สำหรับเก่า
+        final roomStatus = room['status_code'] ?? room['room_status'];
+        final matchesStatus =
+            _selectedRoomStatus == 'all' || roomStatus == _selectedRoomStatus;
 
+        // ใช้ category_code สำหรับ database ใหม่ หรือ room_cate สำหรับเก่า
+        final roomCategory = room['category_code'] ?? room['room_cate'];
         final matchesCategory = _selectedRoomCategory == 'all' ||
-            room['room_cate'] == _selectedRoomCategory;
+            roomCategory == _selectedRoomCategory;
 
         return matchesSearch && matchesStatus && matchesCategory;
       }).toList();
@@ -400,12 +532,22 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Future<void> _toggleRoomStatus(String roomId, String currentStatus) async {
+    // รับสถานะที่เป็นไปได้จาก lookup table
+    final availableStatuses = _roomStatuses.keys.toList();
+
+    // หาสถานะถัดไป
     String newStatus;
     switch (currentStatus) {
       case 'available':
         newStatus = 'maintenance';
         break;
       case 'maintenance':
+        newStatus = 'available';
+        break;
+      case 'cleaning':
+        newStatus = 'available';
+        break;
+      case 'renovation':
         newStatus = 'available';
         break;
       case 'occupied':
@@ -416,6 +558,9 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           ),
         );
         return;
+      case 'reserved':
+        newStatus = 'available';
+        break;
       default:
         newStatus = 'available';
     }
@@ -602,54 +747,26 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                           ],
                         ),
                       ),
-                      PopupMenuItem(
-                        value: 'status_available',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomStatus == 'available'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('ว่าง'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'status_occupied',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomStatus == 'occupied'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('มีผู้เช่า'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'status_maintenance',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomStatus == 'maintenance'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('ซ่อมบำรุง'),
-                          ],
-                        ),
-                      ),
+                      // สร้าง PopupMenuItem สำหรับแต่ละสถานะจาก lookup table
+                      ..._roomStatuses.entries
+                          .map((entry) => PopupMenuItem(
+                                value: 'status_${entry.key}',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _selectedRoomStatus == entry.key
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_unchecked,
+                                      color: AppColors.primary,
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(entry.value['status_name'] ??
+                                        entry.key),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
                       PopupMenuDivider(),
                       PopupMenuItem(
                         enabled: false,
@@ -677,86 +794,26 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                           ],
                         ),
                       ),
-                      PopupMenuItem(
-                        value: 'category_economy',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomCategory == 'economy'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('ประหยัด'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'category_standard',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomCategory == 'standard'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('มาตรฐาน'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'category_deluxe',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomCategory == 'deluxe'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('ดีลักซ์'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'category_premium',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomCategory == 'premium'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('พรีเมี่ยม'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'category_vip',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedRoomCategory == 'vip'
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text('วีไอพี'),
-                          ],
-                        ),
-                      ),
+                      // สร้าง PopupMenuItem สำหรับแต่ละหมวดหมู่จาก lookup table
+                      ..._roomCategories.entries
+                          .map((entry) => PopupMenuItem(
+                                value: 'category_${entry.key}',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _selectedRoomCategory == entry.key
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_unchecked,
+                                      color: AppColors.primary,
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(entry.value['category_name'] ??
+                                        entry.key),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
                     ],
                   ),
                 ],
@@ -1132,20 +1189,68 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
               const SizedBox(width: 16),
               Expanded(
                 child: _buildStatCard(
+                  'ห้องซ่อมบำรุง',
+                  _branchStats['maintenance_rooms'].toString(),
+                  Icons.build,
+                  Colors.amber,
+                ),
+              ),
+            ],
+          ),
+
+          if ((_branchStats['reserved_rooms'] ?? 0) > 0 ||
+              (_branchStats['cleaning_rooms'] ?? 0) > 0 ||
+              (_branchStats['renovation_rooms'] ?? 0) > 0) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                if ((_branchStats['reserved_rooms'] ?? 0) > 0)
+                  Expanded(
+                    child: _buildStatCard(
+                      'ห้องจอง',
+                      _branchStats['reserved_rooms'].toString(),
+                      Icons.bookmark,
+                      Colors.purple,
+                    ),
+                  ),
+                const SizedBox(width: 16),
+                if ((_branchStats['cleaning_rooms'] ?? 0) > 0)
+                  Expanded(
+                    child: _buildStatCard(
+                      'ห้องทำความสะอาด',
+                      _branchStats['cleaning_rooms'].toString(),
+                      Icons.cleaning_services,
+                      Colors.yellow[700]!,
+                    ),
+                  ),
+                const SizedBox(width: 16),
+                if ((_branchStats['renovation_rooms'] ?? 0) > 0)
+                  Expanded(
+                    child: _buildStatCard(
+                      'ห้องปรับปรุง',
+                      _branchStats['renovation_rooms'].toString(),
+                      Icons.construction,
+                      Colors.brown,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // รายได้และผู้เช่า
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
                   'ผู้เช่าทั้งหมด',
                   _branchStats['total_tenants'].toString(),
                   Icons.group,
                   Colors.purple,
                 ),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // รายได้
-          Row(
-            children: [
+              const SizedBox(width: 16),
               Expanded(
                 child: _buildStatCard(
                   'รายได้เดือนนี้',
@@ -1154,7 +1259,13 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                   Colors.green,
                 ),
               ),
-              const SizedBox(width: 16),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
               Expanded(
                 child: _buildStatCard(
                   'ชำระเงินค้างชำระ',
@@ -1162,6 +1273,11 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                   Icons.payment,
                   Colors.red,
                 ),
+              ),
+              const SizedBox(width: 16),
+              // Spacer card หรือ stat เพิ่มเติม
+              Expanded(
+                child: Container(),
               ),
             ],
           ),
@@ -1196,7 +1312,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   Widget _buildRoomManagementTab(bool canManage) {
     return Column(
       children: [
-        // ส่วนค้นหา (ย้ายมาจาก AppBar filter)
+        // ส่วนค้นหา
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1579,8 +1695,14 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Widget _buildRoomCard(Map<String, dynamic> room, bool canManage) {
-    final status = room['room_status'] ?? 'available';
-    final statusColor = _getRoomStatusColor(status);
+    // ใช้ข้อมูลจาก database ใหม่หรือเก่า
+    final statusCode =
+        room['status_code'] ?? room['room_status'] ?? 'available';
+    final categoryCode =
+        room['category_code'] ?? room['room_cate'] ?? 'standard';
+    final typeCode = room['type_code'] ?? room['room_type'] ?? 'single';
+
+    final statusColor = _getRoomStatusColor(statusCode);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1591,7 +1713,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => RoomDetailScreen(room: room),
+              builder: (context) => RoomdetailUi(room: room),
             ),
           );
           if (result == true) {
@@ -1631,7 +1753,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                                     color: statusColor.withOpacity(0.3)),
                               ),
                               child: Text(
-                                _getRoomStatusText(status),
+                                _getRoomStatusText(statusCode),
                                 style: TextStyle(
                                   color: statusColor,
                                   fontSize: 11,
@@ -1664,22 +1786,29 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                               final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => EditRoomUI(room: room),
+                                  builder: (context) => EditRoomUi(
+                                    // เปลี่ยนจาก EditroomUi
+                                    roomId: room[
+                                        'room_id'], // ใช้ room_id จริงแทนที่จะเป็น 'room-uuid-here'
+                                  ),
                                 ),
                               );
                               if (result == true) {
-                                await _loadBranchDetails();
+                                await _loadRoomData(); // โหลดข้อมูลห้องใหม่
+                                await _loadBranchStats(); // โหลดสถิติใหม่
                               }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                    content: Text('คุณไม่มีสิทธิ์แก้ไขสาขานี้'),
-                                    backgroundColor: Colors.red),
+                                  content: Text('คุณไม่มีสิทธิ์แก้ไขห้องนี้'),
+                                  backgroundColor: Colors.red,
+                                ),
                               );
                             }
                             break;
                           case 'toggle_status':
-                            await _toggleRoomStatus(room['room_id'], status);
+                            await _toggleRoomStatus(
+                                room['room_id'], statusCode);
                             break;
                           case 'delete':
                             await _deleteRoom(
@@ -1698,22 +1827,20 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                             ],
                           ),
                         ),
-                        if (status != 'occupied')
+                        if (statusCode != 'occupied')
                           PopupMenuItem(
                             value: 'toggle_status',
                             child: Row(
                               children: [
                                 Icon(
-                                  status == 'available'
+                                  statusCode == 'available'
                                       ? Icons.build
                                       : Icons.check,
                                   size: 20,
                                   color: Colors.orange,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(status == 'available'
-                                    ? 'ปิดซ่อมบำรุง'
-                                    : 'เปิดใช้งาน'),
+                                Text(_getToggleStatusText(statusCode)),
                               ],
                             ),
                           ),
@@ -1747,14 +1874,16 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                         children: [
                           _buildRoomInfoRow(
                               'ประเภท',
-                              _getRoomCategoryText(room['room_cate']),
+                              _getRoomCategoryText(categoryCode),
                               Icons.category),
                           SizedBox(height: 4),
-                          _buildRoomInfoRow('ชนิด',
-                              _getRoomTypeText(room['room_type']), Icons.bed),
+                          _buildRoomInfoRow(
+                              'ชนิด', _getRoomTypeText(typeCode), Icons.bed),
                           SizedBox(height: 4),
-                          _buildRoomInfoRow('ขนาด',
-                              '${room['room_size']} ตร.ม.', Icons.square_foot),
+                          _buildRoomInfoRow(
+                              'ขนาด',
+                              '${room['room_size'] ?? 0} ตร.ม.',
+                              Icons.square_foot),
                         ],
                       ),
                     ),
@@ -1769,7 +1898,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                               '฿${room['room_deposit']}', Icons.savings),
                           SizedBox(height: 4),
                           _buildRoomInfoRow('จำนวนที่พัก',
-                              '${room['room_max']} คน', Icons.people),
+                              '${room['room_max'] ?? 1} คน', Icons.people),
                         ],
                       ),
                     ),
@@ -1796,6 +1925,59 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                     ),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              // แสดงสิ่งอำนวยความสะดวก (ถ้ามี)
+              if (room['room_fac'] != null &&
+                  room['room_fac'] is List &&
+                  (room['room_fac'] as List).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'สิ่งอำนวยความสะดวก',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children:
+                            (room['room_fac'] as List).map<Widget>((facility) {
+                          final facilityName =
+                              _getFacilityName(facility.toString());
+                          return Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              facilityName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green[800],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1862,6 +2044,17 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Color _getRoomStatusColor(String status) {
+    final statusData = _roomStatuses[status];
+    if (statusData != null && statusData['status_color'] != null) {
+      try {
+        return Color(
+            int.parse(statusData['status_color'].replaceFirst('#', '0xFF')));
+      } catch (e) {
+        // fallback colors
+      }
+    }
+
+    // Default colors
     switch (status) {
       case 'available':
         return Colors.green;
@@ -1871,12 +2064,22 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         return Colors.orange;
       case 'reserved':
         return Colors.purple;
+      case 'cleaning':
+        return Colors.yellow[700]!;
+      case 'renovation':
+        return Colors.brown;
       default:
         return Colors.grey;
     }
   }
 
   String _getRoomStatusText(String status) {
+    final statusData = _roomStatuses[status];
+    if (statusData != null && statusData['status_name'] != null) {
+      return statusData['status_name'];
+    }
+
+    // Default status names
     switch (status) {
       case 'available':
         return 'ว่าง';
@@ -1886,12 +2089,22 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         return 'ซ่อมบำรุง';
       case 'reserved':
         return 'จอง';
+      case 'cleaning':
+        return 'ทำความสะอาด';
+      case 'renovation':
+        return 'ปรับปรุง';
       default:
         return 'ไม่ทราบ';
     }
   }
 
   String _getRoomCategoryText(String category) {
+    final categoryData = _roomCategories[category];
+    if (categoryData != null && categoryData['category_name'] != null) {
+      return categoryData['category_name'];
+    }
+
+    // Default category names
     switch (category) {
       case 'economy':
         return 'ประหยัด';
@@ -1909,6 +2122,12 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   String _getRoomTypeText(String type) {
+    final typeData = _roomTypes[type];
+    if (typeData != null && typeData['type_name'] != null) {
+      return typeData['type_name'];
+    }
+
+    // Default type names
     switch (type) {
       case 'single':
         return 'เดี่ยว';
@@ -1925,6 +2144,31 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
       default:
         return type;
     }
+  }
+
+  String _getToggleStatusText(String currentStatus) {
+    switch (currentStatus) {
+      case 'available':
+        return 'ปิดซ่อมบำรุง';
+      case 'maintenance':
+        return 'เปิดใช้งาน';
+      case 'cleaning':
+        return 'เปิดใช้งาน';
+      case 'renovation':
+        return 'เปิดใช้งาน';
+      case 'reserved':
+        return 'ยกเลิกการจอง';
+      default:
+        return 'เปลี่ยนสถานะ';
+    }
+  }
+
+  String _getFacilityName(String facilityCode) {
+    final facility = _roomFacilities.firstWhere(
+      (f) => f['facility_code'] == facilityCode,
+      orElse: () => {'facility_name': facilityCode},
+    );
+    return facility['facility_name'] ?? facilityCode;
   }
 
   String _formatDateTime(String? dateString) {

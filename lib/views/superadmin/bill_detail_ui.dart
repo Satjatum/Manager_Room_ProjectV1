@@ -1392,8 +1392,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  RoomDetailScreen(room: room),
+                              builder: (context) => RoomdetailUi(room: room),
                             ),
                           );
                           if (result == true) {

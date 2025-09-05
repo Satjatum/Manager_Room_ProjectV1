@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/widget/appcolors.dart';
 import 'package:manager_room_project/services/auth_service.dart';
-import 'package:manager_room_project/model/user_model.dart';
+import 'package:manager_room_project/views/superadmin/editroom_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 
 final supabase = Supabase.instance.client;
 
-class RoomDetailScreen extends StatefulWidget {
+class RoomdetailUi extends StatefulWidget {
   final Map<String, dynamic> room;
 
-  const RoomDetailScreen({
+  const RoomdetailUi({
     Key? key,
     required this.room,
   }) : super(key: key);
 
   @override
-  State<RoomDetailScreen> createState() => _RoomDetailScreenState();
+  State<RoomdetailUi> createState() => _RoomdetailUiState();
 }
 
-class _RoomDetailScreenState extends State<RoomDetailScreen> {
+class _RoomdetailUiState extends State<RoomdetailUi> {
   Map<String, dynamic> _roomData = {};
   bool _isLoading = false;
   PageController _imageController = PageController();
   int _currentImageIndex = 0;
   List<String> _imageList = [];
+
+  // ข้อมูล master data
+  List<Map<String, dynamic>> _categories = [];
+  List<Map<String, dynamic>> _types = [];
+  List<Map<String, dynamic>> _statuses = [];
+  List<Map<String, dynamic>> _facilities = [];
 
   @override
   void initState() {
@@ -32,6 +38,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     _roomData = Map<String, dynamic>.from(widget.room);
     _loadImages();
     _loadRoomDetails();
+    _loadMasterData();
   }
 
   void _loadImages() {
@@ -62,7 +69,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
       setState(() {
         _roomData = response;
-        _loadImages(); // โหลดรูปใหม่
+        _loadImages();
         _isLoading = false;
       });
     } catch (e) {
@@ -80,15 +87,55 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     }
   }
 
-  Future<void> _changeRoomStatus(String newStatus) async {
+  Future<void> _loadMasterData() async {
     try {
+      final results = await Future.wait([
+        supabase
+            .from('room_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('display_order'),
+        supabase
+            .from('room_types')
+            .select('*')
+            .eq('is_active', true)
+            .order('display_order'),
+        supabase
+            .from('room_status_types')
+            .select('*')
+            .eq('is_active', true)
+            .order('display_order'),
+        supabase
+            .from('room_facilities')
+            .select('*')
+            .eq('is_active', true)
+            .order('display_order'),
+      ]);
+
+      setState(() {
+        _categories = List<Map<String, dynamic>>.from(results[0]);
+        _types = List<Map<String, dynamic>>.from(results[1]);
+        _statuses = List<Map<String, dynamic>>.from(results[2]);
+        _facilities = List<Map<String, dynamic>>.from(results[3]);
+      });
+    } catch (e) {
+      print('Error loading master data: $e');
+    }
+  }
+
+  Future<void> _changeRoomStatus(String newStatusId) async {
+    try {
+      final statusCode = _getStatusCodeById(newStatusId);
+
       await supabase.from('rooms').update({
-        'room_status': newStatus,
+        'status_id': newStatusId,
+        'room_status': statusCode,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('room_id', _roomData['room_id']);
 
       setState(() {
-        _roomData['room_status'] = newStatus;
+        _roomData['status_id'] = newStatusId;
+        _roomData['room_status'] = statusCode;
       });
 
       if (mounted) {
@@ -111,13 +158,38 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     }
   }
 
+  String? _getStatusCodeById(String statusId) {
+    try {
+      final status = _statuses.firstWhere((s) => s['status_id'] == statusId);
+      return status['status_code'];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _editRoom() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditRoomUi(
+          roomId: _roomData['room_id'],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      await _loadRoomDetails();
+      await _loadMasterData();
+    }
+  }
+
   Future<void> _deleteRoom() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('ยืนยันการลบ'),
         content: Text(
-            'คุณต้องการลบห้อง "${_roomData['room_name']}" ใช่หรือไม่?\n\nการลบจะไม่สามารถกู้คืนได้'),
+            'คุณต้องการลบห้อง "${_roomData['room_name'] ?? _roomData['room_number']}" ใช่หรือไม่?\n\nการลบจะไม่สามารถกู้คืนได้'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -161,148 +233,166 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     }
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'available':
-        return Colors.green;
-      case 'occupied':
-        return Colors.blue;
-      case 'maintenance':
-        return Colors.orange;
-      case 'reserved':
-        return Colors.purple;
-      default:
+  // Helper methods สำหรับการแสดงผลข้อมูลจากตารางใหม่
+  String _getCategoryName() {
+    if (_roomData['category_id'] != null) {
+      try {
+        final category = _categories.firstWhere(
+            (cat) => cat['category_id'] == _roomData['category_id']);
+        return category['category_name'] ?? 'ไม่ระบุ';
+      } catch (e) {
+        return 'ไม่พบข้อมูล';
+      }
+    }
+    return 'ไม่ระบุ';
+  }
+
+  String _getTypeName() {
+    if (_roomData['type_id'] != null) {
+      try {
+        final type =
+            _types.firstWhere((t) => t['type_id'] == _roomData['type_id']);
+        return type['type_name'] ?? 'ไม่ระบุ';
+      } catch (e) {
+        return 'ไม่พบข้อมูล';
+      }
+    }
+    return 'ไม่ระบุ';
+  }
+
+  String _getStatusName() {
+    if (_roomData['status_id'] != null) {
+      try {
+        final status = _statuses
+            .firstWhere((s) => s['status_id'] == _roomData['status_id']);
+        return status['status_name'] ?? 'ไม่ระบุ';
+      } catch (e) {
+        return 'ไม่พบข้อมูล';
+      }
+    }
+    return 'ไม่ระบุ';
+  }
+
+  Color _getStatusColor() {
+    if (_roomData['status_id'] != null) {
+      try {
+        final status = _statuses
+            .firstWhere((s) => s['status_id'] == _roomData['status_id']);
+        if (status['status_color'] != null) {
+          return Color(
+              int.parse(status['status_color'].replaceFirst('#', '0xFF')));
+        }
+      } catch (e) {
         return Colors.grey;
+      }
     }
+    return Colors.grey;
   }
 
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'available':
-        return 'ว่าง';
-      case 'occupied':
-        return 'มีผู้เช่า';
-      case 'maintenance':
-        return 'ซ่อมบำรุง';
-      case 'reserved':
-        return 'จอง';
-      default:
-        return 'ไม่ทราบ';
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'available':
-        return Icons.check_circle;
-      case 'occupied':
-        return Icons.person;
-      case 'maintenance':
-        return Icons.build;
-      case 'reserved':
-        return Icons.book;
-      default:
+  IconData _getStatusIcon() {
+    if (_roomData['status_id'] != null) {
+      try {
+        final status = _statuses
+            .firstWhere((s) => s['status_id'] == _roomData['status_id']);
+        if (status['status_icon'] != null) {
+          return _getIconFromString(status['status_icon']);
+        }
+      } catch (e) {
         return Icons.help;
+      }
     }
+    return Icons.help;
   }
 
-  String _getCategoryText(String category) {
-    switch (category) {
-      case 'economy':
-        return 'Economy';
-      case 'standard':
-        return 'Standard';
-      case 'deluxe':
-        return 'Deluxe';
-      case 'premium':
-        return 'Premium';
-      case 'vip':
-        return 'VIP';
-      default:
-        return 'ไม่ทราบ';
-    }
-  }
-
-  String _getTypeText(String type) {
-    switch (type) {
-      case 'single':
-        return 'Single';
-      case 'twin':
-        return 'Twin';
-      case 'double':
-        return 'Double';
-      case 'family':
-        return 'Family';
-      case 'studio':
-        return 'Studio';
-      case 'suite':
-        return 'Suite';
-      default:
-        return 'ไม่ทราบ';
-    }
-  }
-
-  String _getFacilityLabel(String facility) {
-    switch (facility) {
-      case 'air_conditioner':
-        return 'เครื่องปรับอากาศ';
-      case 'wifi':
-        return 'Wi-Fi';
-      case 'tv':
-        return 'โทรทัศน์';
-      case 'refrigerator':
-        return 'ตู้เย็น';
-      case 'water_heater':
-        return 'เครื่องทำน้ำอุ่น';
-      case 'wardrobe':
-        return 'ตู้เสื้อผ้า';
-      case 'desk':
-        return 'โต๊ะทำงาน';
-      case 'balcony':
-        return 'ระเบียง';
-      case 'parking':
-        return 'ที่จอดรถ';
-      case 'washing_machine':
-        return 'เครื่องซักผ้า';
-      default:
-        return facility;
-    }
-  }
-
-  IconData _getFacilityIcon(String facility) {
-    switch (facility) {
-      case 'air_conditioner':
+  IconData _getIconFromString(String iconName) {
+    switch (iconName) {
+      case 'check_circle':
+        return Icons.check_circle;
+      case 'people':
+      case 'person':
+        return Icons.people;
+      case 'build':
+        return Icons.build;
+      case 'book':
+      case 'bookmark':
+        return Icons.bookmark;
+      case 'cleaning_services':
+        return Icons.cleaning_services;
+      case 'construction':
+        return Icons.construction;
+      case 'ac_unit':
         return Icons.ac_unit;
       case 'wifi':
         return Icons.wifi;
       case 'tv':
         return Icons.tv;
-      case 'refrigerator':
+      case 'kitchen':
         return Icons.kitchen;
-      case 'water_heater':
+      case 'hot_tub':
         return Icons.hot_tub;
-      case 'wardrobe':
+      case 'checkroom':
         return Icons.checkroom;
       case 'desk':
         return Icons.desk;
       case 'balcony':
         return Icons.balcony;
-      case 'parking':
+      case 'local_parking':
         return Icons.local_parking;
-      case 'washing_machine':
+      case 'local_laundry_service':
         return Icons.local_laundry_service;
+      case 'microwave':
+        return Icons.microwave;
+      case 'chair':
+        return Icons.chair;
+      case 'lock':
+        return Icons.lock;
+      case 'fitness_center':
+        return Icons.fitness_center;
+      case 'pool':
+        return Icons.pool;
       default:
-        return Icons.star;
+        return Icons.help;
     }
+  }
+
+  String _getFacilityLabel(String facility) {
+    try {
+      final facilityData = _facilities.firstWhere((f) =>
+          f['facility_code'] == facility || f['facility_name'] == facility);
+      return facilityData['facility_name'] ?? facility;
+    } catch (e) {
+      return facility;
+    }
+  }
+
+  IconData _getFacilityIcon(String facility) {
+    try {
+      final facilityData = _facilities.firstWhere((f) =>
+          f['facility_code'] == facility || f['facility_name'] == facility);
+      if (facilityData['facility_icon'] != null) {
+        return _getIconFromString(facilityData['facility_icon']);
+      }
+    } catch (e) {
+      // Return default icon if not found
+    }
+    return Icons.star;
+  }
+
+  bool _canManageRoom() {
+    final currentUser = AuthService.getCurrentUser();
+    if (currentUser?.isSuperAdmin ?? false) return true;
+
+    if (currentUser?.isAdmin ?? false) {
+      return true;
+    }
+
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = AuthService.getCurrentUser();
-    final canManage =
-        currentUser?.isSuperAdmin ?? currentUser?.isAdmin ?? false;
-    final status = _roomData['room_status'] ?? 'available';
-    final statusColor = _getStatusColor(status);
+    final canManage = _canManageRoom();
+    final statusColor = _getStatusColor();
 
     return Scaffold(
       body: NestedScrollView(
@@ -320,9 +410,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     onSelected: (value) async {
                       switch (value) {
                         case 'edit':
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('ฟีเจอร์แก้ไขกำลังพัฒนา')),
-                          );
+                          await _editRoom();
                           break;
                         case 'change_status':
                           _showStatusChangeDialog();
@@ -373,102 +461,104 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
           ];
         },
-        body: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Room Header
-              _buildRoomHeader(),
+        body: _isLoading
+            ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+            : SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Room Header
+                    _buildRoomHeader(),
 
-              SizedBox(height: 24),
+                    SizedBox(height: 24),
 
-              // Basic Info
-              _buildInfoCard(
-                'ข้อมูลพื้นฐาน',
-                Icons.info_outline,
-                [
-                  _buildInfoRow(
-                      'หมายเลขห้อง', _roomData['room_number'] ?? 'ไม่ระบุ'),
-                  _buildInfoRow(
-                      'ชื่อห้อง', _roomData['room_name'] ?? 'ไม่ระบุ'),
-                  _buildInfoRow('สาขา', _roomData['branch_name'] ?? 'ไม่ระบุ'),
-                  _buildInfoRow('หมวดหมู่',
-                      _getCategoryText(_roomData['room_cate'] ?? 'standard')),
-                  _buildInfoRow('ประเภท',
-                      _getTypeText(_roomData['room_type'] ?? 'single')),
-                  if (_roomData['room_size'] != null)
-                    _buildInfoRow('ขนาด', '${_roomData['room_size']} ตร.ม.'),
-                  _buildInfoRow('จำนวนผู้เข้าพักสูงสุด',
-                      '${_roomData['room_max'] ?? 1} คน'),
-                ],
-              ),
-
-              SizedBox(height: 16),
-
-              // Pricing
-              _buildInfoCard(
-                'ราคาและค่าใช้จ่าย',
-                Icons.monetization_on,
-                [
-                  _buildInfoRow('ค่าเช่ารายเดือน',
-                      '฿${_formatCurrency(_roomData['room_rate']?.toDouble() ?? 0)}'),
-                  _buildInfoRow('เงินมัดจำ',
-                      '฿${_formatCurrency(_roomData['room_deposit']?.toDouble() ?? 0)}'),
-                ],
-              ),
-
-              SizedBox(height: 16),
-
-              // Facilities
-              if (_roomData['room_fac'] != null &&
-                  (_roomData['room_fac'] as List).isNotEmpty)
-                _buildFacilitiesCard(),
-
-              SizedBox(height: 16),
-
-              // Description
-              if (_roomData['room_des'] != null &&
-                  _roomData['room_des'].toString().isNotEmpty)
-                _buildInfoCard(
-                  'คำอธิบาย',
-                  Icons.description_outlined,
-                  [
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        _roomData['room_des'],
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                          height: 1.5,
-                        ),
-                      ),
+                    // Basic Info
+                    _buildInfoCard(
+                      'ข้อมูลพื้นฐาน',
+                      Icons.info_outline,
+                      [
+                        _buildInfoRow('หมายเลขห้อง',
+                            _roomData['room_number'] ?? 'ไม่ระบุ'),
+                        _buildInfoRow(
+                            'ชื่อห้อง', _roomData['room_name'] ?? 'ไม่ระบุ'),
+                        _buildInfoRow(
+                            'สาขา', _roomData['branch_name'] ?? 'ไม่ระบุ'),
+                        _buildInfoRow('หมวดหมู่', _getCategoryName()),
+                        _buildInfoRow('ประเภท', _getTypeName()),
+                        if (_roomData['room_size'] != null)
+                          _buildInfoRow(
+                              'ขนาด', '${_roomData['room_size']} ตร.ม.'),
+                        _buildInfoRow('จำนวนผู้เข้าพักสูงสุด',
+                            '${_roomData['room_max'] ?? 1} คน'),
+                      ],
                     ),
+
+                    SizedBox(height: 16),
+
+                    // Pricing
+                    _buildInfoCard(
+                      'ราคาและค่าใช้จ่าย',
+                      Icons.monetization_on,
+                      [
+                        _buildInfoRow('ค่าเช่ารายเดือน',
+                            '฿${_formatCurrency(_roomData['room_rate']?.toDouble() ?? 0)}'),
+                        _buildInfoRow('เงินมัดจำ',
+                            '฿${_formatCurrency(_roomData['room_deposit']?.toDouble() ?? 0)}'),
+                      ],
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // Facilities
+                    if (_roomData['room_fac'] != null &&
+                        (_roomData['room_fac'] as List).isNotEmpty)
+                      _buildFacilitiesCard(),
+
+                    SizedBox(height: 16),
+
+                    // Description
+                    if (_roomData['room_des'] != null &&
+                        _roomData['room_des'].toString().isNotEmpty)
+                      _buildInfoCard(
+                        'คำอธิบาย',
+                        Icons.description_outlined,
+                        [
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              _roomData['room_des'],
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                    SizedBox(height: 16),
+
+                    // System Info
+                    _buildInfoCard(
+                      'ข้อมูลระบบ',
+                      Icons.timeline,
+                      [
+                        _buildInfoRow('วันที่สร้าง',
+                            _formatDateTime(_roomData['created_at'])),
+                        _buildInfoRow('อัพเดทล่าสุด',
+                            _formatDateTime(_roomData['updated_at'])),
+                      ],
+                    ),
+
+                    SizedBox(height: 24),
+
+                    // Action Buttons
+                    if (canManage) _buildActionButtons(),
                   ],
                 ),
-
-              SizedBox(height: 16),
-
-              // System Info
-              _buildInfoCard(
-                'ข้อมูลระบบ',
-                Icons.timeline,
-                [
-                  _buildInfoRow(
-                      'วันที่สร้าง', _formatDateTime(_roomData['created_at'])),
-                  _buildInfoRow(
-                      'อัพเดทล่าสุด', _formatDateTime(_roomData['updated_at'])),
-                ],
               ),
-
-              SizedBox(height: 24),
-
-              // Action Buttons
-              if (canManage) _buildActionButtons(),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -581,8 +671,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   Widget _buildRoomHeader() {
-    final status = _roomData['room_status'] ?? 'available';
-    final statusColor = _getStatusColor(status);
+    final statusColor = _getStatusColor();
 
     return Card(
       child: Padding(
@@ -618,11 +707,10 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_getStatusIcon(status),
-                          size: 16, color: statusColor),
+                      Icon(_getStatusIcon(), size: 16, color: statusColor),
                       SizedBox(width: 6),
                       Text(
-                        _getStatusText(status),
+                        _getStatusName(),
                         style: TextStyle(
                           color: statusColor,
                           fontSize: 14,
@@ -648,7 +736,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${_getCategoryText(_roomData['room_cate'] ?? 'standard')} • ${_getTypeText(_roomData['room_type'] ?? 'single')}',
+                  '${_getCategoryName()} • ${_getTypeName()}',
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 16,
@@ -813,29 +901,12 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
           width: double.infinity,
           height: 50,
           child: ElevatedButton.icon(
-            onPressed: _showStatusChangeDialog,
-            icon: Icon(Icons.swap_horiz),
-            label: Text('เปลี่ยนสถานะห้อง'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-        SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('ฟีเจอร์แก้ไขกำลังพัฒนา')),
-              );
-            },
-            icon: Icon(Icons.edit),
+            onPressed: _editRoom,
+            // icon: Icon(Icons.edit),
             label: Text('แก้ไขข้อมูลห้อง'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
               side: BorderSide(color: AppColors.primary),
             ),
           ),
@@ -844,12 +915,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         SizedBox(
           width: double.infinity,
           height: 50,
-          child: OutlinedButton.icon(
+          child: ElevatedButton.icon(
             onPressed: _deleteRoom,
-            icon: Icon(Icons.delete),
+            // icon: Icon(Icons.delete),
             label: Text('ลบห้อง'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
               side: BorderSide(color: Colors.red),
             ),
           ),
@@ -863,17 +935,46 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('เปลี่ยนสถานะห้อง'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildStatusOption(
-                'available', 'ว่าง', Icons.check_circle, Colors.green),
-            _buildStatusOption(
-                'occupied', 'มีผู้เช่า', Icons.person, Colors.blue),
-            _buildStatusOption(
-                'maintenance', 'ซ่อมบำรุง', Icons.build, Colors.orange),
-            _buildStatusOption('reserved', 'จอง', Icons.book, Colors.purple),
-          ],
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _statuses.length,
+            itemBuilder: (context, index) {
+              final status = _statuses[index];
+              final isCurrentStatus =
+                  _roomData['status_id'] == status['status_id'];
+
+              Color statusColor;
+              try {
+                statusColor = Color(int.parse(
+                    status['status_color'].replaceFirst('#', '0xFF')));
+              } catch (e) {
+                statusColor = Colors.grey;
+              }
+
+              return ListTile(
+                leading: Icon(
+                  _getIconFromString(status['status_icon'] ?? 'help'),
+                  color: statusColor,
+                ),
+                title: Text(status['status_name'] ?? ''),
+                subtitle: status['status_description'] != null
+                    ? Text(status['status_description'])
+                    : null,
+                trailing: isCurrentStatus
+                    ? Icon(Icons.check, color: Colors.green)
+                    : null,
+                enabled: !isCurrentStatus,
+                onTap: isCurrentStatus
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        _changeRoomStatus(status['status_id']);
+                      },
+              );
+            },
+          ),
         ),
         actions: [
           TextButton(
@@ -882,24 +983,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStatusOption(
-      String status, String label, IconData icon, Color color) {
-    final isCurrentStatus = _roomData['room_status'] == status;
-
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(label),
-      trailing: isCurrentStatus ? Icon(Icons.check, color: Colors.green) : null,
-      enabled: !isCurrentStatus,
-      onTap: isCurrentStatus
-          ? null
-          : () {
-              Navigator.pop(context);
-              _changeRoomStatus(status);
-            },
     );
   }
 
