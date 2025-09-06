@@ -99,50 +99,50 @@ class _TenantListDetailUiState extends State<TenantListDetailUi> {
     }
   }
 
-  Future<void> _deleteTenant() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('ยืนยันการลบ'),
-        content: Text(
-            'คุณต้องการลบข้อมูลผู้เช่า "${_tenant['tenant_full_name']}" ใช่หรือไม่?\n\nการลบจะไม่สามารถกู้คืนได้'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('ยกเลิก'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('ลบ', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  // Future<void> _deleteTenant() async {
+  //   final confirm = await showDialog<bool>(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text('ยืนยันการลบ'),
+  //       content: Text(
+  //           'คุณต้องการลบข้อมูลผู้เช่า "${_tenant['tenant_full_name']}" ใช่หรือไม่?\n\nการลบจะไม่สามารถกู้คืนได้'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context, false),
+  //           child: Text('ยกเลิก'),
+  //         ),
+  //         ElevatedButton(
+  //           onPressed: () => Navigator.pop(context, true),
+  //           style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+  //           child: Text('ลบ', style: TextStyle(color: Colors.white)),
+  //         ),
+  //       ],
+  //     ),
+  //   );
 
-    if (confirm == true) {
-      try {
-        await supabase
-            .from('tenants')
-            .delete()
-            .eq('tenant_id', _tenant['tenant_id']);
+  //   if (confirm == true) {
+  //     try {
+  //       await supabase
+  //           .from('tenants')
+  //           .delete()
+  //           .eq('tenant_id', _tenant['tenant_id']);
 
-        if (mounted) {
-          Navigator.pop(context, true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('ลบข้อมูลผู้เช่าสำเร็จ'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          _showErrorSnackBar('เกิดข้อผิดพลาดในการลบข้อมูล: $e');
-        }
-      }
-    }
-  }
+  //       if (mounted) {
+  //         Navigator.pop(context, true);
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text('ลบข้อมูลผู้เช่าสำเร็จ'),
+  //             backgroundColor: Colors.green,
+  //           ),
+  //         );
+  //       }
+  //     } catch (e) {
+  //       if (mounted) {
+  //         _showErrorSnackBar('เกิดข้อผิดพลาดในการลบข้อมูล: $e');
+  //       }
+  //     }
+  //   }
+  // }
 
   bool _canManageTenant() {
     final currentUser = AuthService.getCurrentUser();
@@ -154,11 +154,11 @@ class _TenantListDetailUiState extends State<TenantListDetailUi> {
   @override
   Widget build(BuildContext context) {
     final canManage = _canManageTenant();
-    final room = _tenant['rooms'];
-    final branch = _tenant['branches'];
-    final tenantIn = DateTime.parse(_tenant['tenant_in']);
-    final tenantOut = DateTime.parse(_tenant['tenant_out']);
-    final isExpiringSoon = tenantOut.difference(DateTime.now()).inDays <= 30;
+    // final room = _tenant['rooms'];
+    // final branch = _tenant['branches'];
+    // final tenantIn = DateTime.parse(_tenant['tenant_in']);
+    // final tenantOut = DateTime.parse(_tenant['tenant_out']);
+    // final isExpiringSoon = tenantOut.difference(DateTime.now()).inDays <= 30;
     final hasCode = _tenant['tenant_code'] != null &&
         _tenant['tenant_code'].toString().isNotEmpty;
 
@@ -580,7 +580,7 @@ class _TenantListDetailUiState extends State<TenantListDetailUi> {
     final tenantIn = DateTime.parse(_tenant['tenant_in']);
     final tenantOut = DateTime.parse(_tenant['tenant_out']);
     final duration = tenantOut.difference(tenantIn).inDays;
-    final remaining = tenantOut.difference(DateTime.now()).inDays;
+    // final remaining = tenantOut.difference(DateTime.now()).inDays;
 
     return _buildInfoCard(
       title: 'ข้อมูลสัญญา',

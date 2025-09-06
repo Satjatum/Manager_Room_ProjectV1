@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/services/auth_service.dart';
-import 'package:manager_room_project/views/superadmin/addtenant_ui.dart';
+
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/create_bill_ui.dart';
-import 'package:manager_room_project/views/superadmin/notification_ui.dart';
 import 'package:manager_room_project/views/superadmin/reportmanagement_ui.dart';
 import 'package:manager_room_project/views/superadmin/setting_ui.dart';
 import 'package:manager_room_project/views/superadmin/superadmindash_ui.dart';

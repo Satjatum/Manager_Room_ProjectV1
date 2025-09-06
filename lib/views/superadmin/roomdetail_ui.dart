@@ -392,7 +392,6 @@ class _RoomdetailUiState extends State<RoomdetailUi> {
   @override
   Widget build(BuildContext context) {
     final canManage = _canManageRoom();
-    final statusColor = _getStatusColor();
 
     return Scaffold(
       body: NestedScrollView(

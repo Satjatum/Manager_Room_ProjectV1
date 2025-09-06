@@ -360,10 +360,6 @@ class _BranchlistUiState extends State<BranchlistUi> {
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadBranches,
-            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.filter_list),
               onSelected: (value) => _onStatusChanged(value),
@@ -429,6 +425,10 @@ class _BranchlistUiState extends State<BranchlistUi> {
                       ],
                     )),
               ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadBranches,
             ),
           ],
         ),
@@ -578,25 +578,27 @@ class _BranchlistUiState extends State<BranchlistUi> {
             )),
         if (_searchQuery.isEmpty && canAdd)
           Padding(
-              padding: EdgeInsets.only(top: 24),
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => AddBranchScreen()));
-                  if (result == true) {
-                    await _loadBranches();
-                  }
-                },
-                icon: Icon(Icons.add),
-                label: Text('เพิ่มสาขาใหม่'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
-              )),
+            padding: EdgeInsets.only(top: 24),
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => AddBranchScreen()));
+                if (result == true) {
+                  await _loadBranches();
+                }
+              },
+              icon: Icon(Icons.add),
+              label: Text('เพิ่มสาขาใหม่'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
       ],
     ));
   }
@@ -604,8 +606,8 @@ class _BranchlistUiState extends State<BranchlistUi> {
   Widget _buildBranchCard(Map<String, dynamic> branch, bool canManage) {
     final status = branch['branch_status'] ?? 'active';
     final statusColor = _getStatusColor(status);
-    final hasImage = branch['branch_image'] != null &&
-        branch['branch_image'].toString().isNotEmpty;
+    // final hasImage = branch['branch_image'] != null &&
+    //     branch['branch_image'].toString().isNotEmpty;
 
     return Card(
       margin: EdgeInsets.only(bottom: 20),

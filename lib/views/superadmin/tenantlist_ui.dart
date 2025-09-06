@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/superadmin/addtenant_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenantcode_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlistdetail_ui.dart';
 import 'package:manager_room_project/widget/appbuttomnav.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -117,48 +118,76 @@ class _TenantListScreenState extends State<TenantlistUi> {
     }
   }
 
-  Future<void> _updateTenantStatus(String tenantId, String newStatus) async {
+  Future<void> _createUserAccountWithNavigation(
+      Map<String, dynamic> tenant) async {
     try {
+      // Show enhanced loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+                  ),
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'กำลังสร้างบัญชีผู้ใช้...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Create user account logic here
       await supabase.from('tenants').update({
-        'tenant_status': newStatus,
+        'has_account': true,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('tenant_id', tenantId);
+      }).eq('tenant_id', tenant['tenant_id']);
 
-      // อัปเดตสถานะห้องด้วย
-      if (newStatus == 'checkout' || newStatus == 'terminated') {
-        final tenant = _tenants.firstWhere((t) => t['tenant_id'] == tenantId);
-        await supabase.from('rooms').update({
-          'room_status': 'available',
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('room_id', tenant['room_id']);
-      }
-
-      _showSuccessSnackBar('อัปเดตสถานะสำเร็จ');
+      Navigator.pop(context); // Close loading dialog
+      _showSuccessSnackBar('สร้างบัญชีผู้ใช้สำเร็จ');
       _loadTenants();
+      Future.delayed(Duration(milliseconds: 800), () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TenantCodeManagerScreen(),
+          ),
+        );
+      });
     } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการอัปเดตสถานะ: $e');
-    }
-  }
-
-  Future<void> _updateContactStatus(
-      String tenantId, String newContactStatus) async {
-    try {
-      await supabase.from('tenants').update({
-        'contact_status': newContactStatus,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('tenant_id', tenantId);
-
-      _showSuccessSnackBar('อัปเดตสถานะการติดต่อสำเร็จ');
-      _loadTenants();
-    } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการอัปเดตสถานะการติดต่อ: $e');
+      Navigator.pop(context); // Close loading dialog
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการสร้างบัญชี: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = AuthService.getCurrentUser();
-    final canAdd = currentUser?.isSuperAdmin ?? currentUser?.isAdmin ?? false;
+    final canAdd =
+        (currentUser?.isSuperAdmin ?? false) || (currentUser?.isAdmin ?? false);
     return Scaffold(
       appBar: AppBar(
         title: Text('รายชื่อผู้เช่าทั้งหมด'),
@@ -529,42 +558,46 @@ class _TenantListScreenState extends State<TenantlistUi> {
     final isExpiringSoon = tenantOut.difference(DateTime.now()).inDays <= 30;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.1),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => TenantListDetailUi(
-                tenantId: tenant['tenant_id'], // ส่งเฉพาะ ID
+                tenantId: tenant['tenant_id'],
                 onTenantUpdated: _loadTenants,
               ),
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ---------- Header Section ----------
                 Row(
                   children: [
-                    // Enhanced Avatar
+                    // Compact Avatar
                     Container(
-                      padding: EdgeInsets.all(3),
+                      padding: EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -572,14 +605,24 @@ class _TenantListScreenState extends State<TenantlistUi> {
                             AppColors.primary.withOpacity(0.1),
                             AppColors.primary.withOpacity(0.05),
                           ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
                         ),
                       ),
-                      child: _avatarFromName(tenant['tenant_full_name']),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Text(
+                          tenant['tenant_full_name'][0].toUpperCase(),
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    // Name and basic info
+                    const SizedBox(width: 12),
+
+                    // Name and basic info - Flexible to prevent overflow
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,23 +630,29 @@ class _TenantListScreenState extends State<TenantlistUi> {
                           Text(
                             tenant['tenant_full_name'],
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                               color: Colors.grey[800],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
                               Icon(Icons.phone_outlined,
-                                  size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 6),
-                              Text(
-                                tenant['tenant_phone'],
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                                  size: 12, color: Colors.grey[500]),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  tenant['tenant_phone'],
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -611,59 +660,146 @@ class _TenantListScreenState extends State<TenantlistUi> {
                         ],
                       ),
                     ),
-                    // Status badges
+
+                    // Compact Status Badges
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        _buildStatusBadge(status),
-                        if (contactStatus != null) ...[
-                          const SizedBox(height: 8),
-                          _buildContactStatusBadge(contactStatus),
-                        ],
-                        if (isExpiringSoon && status == 'active') ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.orange.withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.warning_outlined,
-                                    size: 12, color: Colors.orange[700]),
-                                SizedBox(width: 4),
-                                Text(
-                                  'ใกล้หมดสัญญา',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.orange[700],
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        _buildCompactStatusBadge(
+                          hasAccount ? 'บัญชี' : 'ไม่มีบัญชี',
+                          hasAccount ? Colors.blue : Colors.grey,
+                          hasAccount
+                              ? Icons.account_circle
+                              : Icons.account_circle_outlined,
+                        ),
+                        const SizedBox(height: 4),
+                        _buildCompactStatusBadge(
+                          hasCode ? 'รหัส' : 'ไม่มีรหัส',
+                          hasCode ? Colors.green : Colors.orange,
+                          hasCode ? Icons.qr_code : Icons.qr_code_scanner,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Popup Menu Button - Compact
+                    PopupMenuButton<String>(
+                      icon: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          Icons.more_vert,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      tooltip: 'ตัวเลือก',
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'edit':
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TenantListDetailUi(
+                                  tenantId: tenant['tenant_id'],
+                                  onTenantUpdated: _loadTenants,
                                 ),
-                              ],
-                            ),
+                              ),
+                            );
+                            break;
+                          case 'create_account':
+                            _showCreateAccountDialog(tenant);
+                            break;
+                          case 'delete_account':
+                            _showDeleteAccountDialog(tenant);
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit,
+                                  size: 16, color: Colors.blue[600]),
+                              SizedBox(width: 8),
+                              Text('แก้ไข', style: TextStyle(fontSize: 14)),
+                            ],
                           ),
-                        ],
+                        ),
+                        PopupMenuItem(
+                          value: 'create_account',
+                          enabled: tenant['has_account'] != true,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_add,
+                                size: 16,
+                                color: tenant['has_account'] == true
+                                    ? Colors.grey[400]
+                                    : Colors.green[600],
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'สร้างบัญชี',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: tenant['has_account'] == true
+                                      ? Colors.grey[400]
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete_account',
+                          enabled: tenant['has_account'] == true,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_remove,
+                                size: 16,
+                                color: tenant['has_account'] == true
+                                    ? Colors.red[600]
+                                    : Colors.grey[400],
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'ลบบัญชี',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: tenant['has_account'] == true
+                                      ? Colors.red[600]
+                                      : Colors.grey[400],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // ---------- Room Info Section ----------
+                // ---------- Room Info Section - Compact ----------
                 Container(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.04),
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: AppColors.primary.withOpacity(0.1),
                       width: 1,
@@ -671,26 +807,27 @@ class _TenantListScreenState extends State<TenantlistUi> {
                   ),
                   child: Row(
                     children: [
-                      // Room info
+                      // Room info - takes most space
                       Expanded(
+                        flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
                                 Container(
-                                  padding: EdgeInsets.all(8),
+                                  padding: EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: AppColors.primary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
-                                    Icons.home_outlined,
-                                    size: 18,
+                                    Icons.home,
+                                    size: 14,
                                     color: AppColors.primary,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -699,36 +836,44 @@ class _TenantListScreenState extends State<TenantlistUi> {
                                       Text(
                                         'ห้อง ${tenant['room_number']}',
                                         style: TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 15,
                                           fontWeight: FontWeight.w700,
                                           color: AppColors.primary,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
                                         room['room_name'],
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12,
                                           color: Colors.grey[600],
                                           fontWeight: FontWeight.w500,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                Icon(Icons.payments_outlined,
-                                    size: 16, color: Colors.green[600]),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${room['room_rate']} บาท/เดือน',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.green[700],
-                                    fontWeight: FontWeight.w700,
+                                Icon(Icons.payments,
+                                    size: 14, color: Colors.green[600]),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '${room['room_rate']} บาท/เดือน',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -736,33 +881,36 @@ class _TenantListScreenState extends State<TenantlistUi> {
                           ],
                         ),
                       ),
-                      // QR Code section
+
+                      // QR Code section - compact
                       if (hasCode) ...[
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: AppColors.primary.withOpacity(0.2),
-                              width: 1.5,
+                              width: 1,
                             ),
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.qr_code_2,
-                                  size: 24, color: AppColors.primary),
-                              const SizedBox(height: 6),
+                                  size: 16, color: AppColors.primary),
+                              const SizedBox(height: 2),
                               Text(
                                 tenant['tenant_code'],
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 8,
                                   fontWeight: FontWeight.bold,
                                   fontFamily: 'monospace',
                                   color: AppColors.primary,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -772,73 +920,52 @@ class _TenantListScreenState extends State<TenantlistUi> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // ---------- Contract Duration Section ----------
+                // ---------- Compact Date and Status Row ----------
                 Row(
                   children: [
+                    // Contract dates - compact
                     Expanded(
-                      child: _buildDateCard(
-                        icon: Icons.login_outlined,
-                        label: 'เข้าพัก',
-                        date: _formatDate(tenantIn),
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildDateCard(
-                        icon: Icons.logout_outlined,
-                        label: 'สิ้นสุด',
-                        date: _formatDate(tenantOut),
-                        color: Colors.red,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Menu button
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => _showStatusUpdateDialog(tenant),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(
-                              Icons.more_vert,
-                              size: 20,
-                              color: Colors.grey[600],
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildCompactDateCard(
+                              icon: Icons.login,
+                              label: 'เข้าพัก',
+                              date: _formatCompactDate(tenantIn),
+                              color: Colors.blue,
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildCompactDateCard(
+                              icon: Icons.logout,
+                              label: 'สิ้นสุด',
+                              date: _formatCompactDate(tenantOut),
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
 
-                // ---------- Footer Section ----------
-                if (hasAccount || tenant['last_access_at'] != null) ...[
-                  const SizedBox(height: 16),
+                // ---------- Status Badges Row - if needed ----------
+                if (status != null ||
+                    contactStatus != null ||
+                    (isExpiringSoon && status == 'active')) ...[
+                  const SizedBox(height: 8),
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
-                      if (hasAccount)
-                        _buildFeatureBadge(
-                          icon: Icons.account_circle_outlined,
-                          label: 'มีบัญชี',
-                          color: Colors.blue,
-                        ),
-                      if (tenant['last_access_at'] != null)
-                        _buildFeatureBadge(
-                          icon: Icons.access_time_outlined,
-                          label: 'เข้าใช้งาน',
-                          color: Colors.green,
-                        ),
+                      if (status != null) _buildSimpleStatusBadge(status),
+                      if (contactStatus != null)
+                        _buildSimpleContactStatusBadge(contactStatus),
+                      if (isExpiringSoon && status == 'active')
+                        _buildSimpleWarningBadge(),
                     ],
                   ),
                 ],
@@ -850,39 +977,68 @@ class _TenantListScreenState extends State<TenantlistUi> {
     );
   }
 
-  Widget _buildDateCard({
+// Compact helper methods
+  Widget _buildCompactStatusBadge(String label, Color color, IconData icon) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactDateCard({
     required IconData icon,
     required String label,
     required String date,
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: color.withOpacity(0.2),
-          width: 1,
+          width: 0.5,
         ),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 6),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: Colors.grey[600],
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 2),
           Text(
             date,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 10,
               color: color,
               fontWeight: FontWeight.w700,
             ),
@@ -892,171 +1048,221 @@ class _TenantListScreenState extends State<TenantlistUi> {
     );
   }
 
-  Widget _buildFeatureBadge({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-          ),
-        ],
-      ),
-    );
-  }
-
-// =================== Helpers ===================
-
-  Widget _avatarFromName(String name) {
-    final initials = name.trim().isEmpty
-        ? '?'
-        : name
-            .trim()
-            .split(RegExp(r'\s+'))
-            .take(2)
-            .map((e) => e[0])
-            .join()
-            .toUpperCase();
-
-    final seed = name.hashCode;
-    final hue = (seed % 360).toDouble();
-    final color = HSLColor.fromAHSL(1, hue, 0.6, 0.7).toColor();
-
-    return CircleAvatar(
-      radius: 26,
-      backgroundColor: color.withOpacity(0.15),
-      child: Text(
-        initials,
-        style: TextStyle(
-          color: AppColors.primary,
-          fontWeight: FontWeight.w800,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
+  Widget _buildSimpleStatusBadge(String status) {
     Color color;
     String label;
-    IconData icon;
 
     switch (status) {
       case 'active':
         color = Colors.green;
-        label = 'เข้าพักแล้ว';
-        icon = Icons.check_circle_outlined;
+        label = 'เข้าพัก';
         break;
       case 'suspended':
         color = Colors.orange;
-        label = 'ระงับชั่วคราว';
-        icon = Icons.pause_circle_outlined;
+        label = 'ระงับ';
         break;
       case 'checkout':
         color = Colors.red;
-        label = 'ออกจากห้อง';
-        icon = Icons.exit_to_app_outlined;
+        label = 'ออก';
         break;
       case 'terminated':
         color = Colors.grey;
-        label = 'ยกเลิกสัญญา';
-        icon = Icons.cancel_outlined;
+        label = 'ยกเลิก';
         break;
       default:
         color = Colors.grey;
         label = status;
-        icon = Icons.help_outline;
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: color.withOpacity(0.3),
-          width: 1,
+          width: 0.5,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 
-  Widget _buildContactStatusBadge(String contactStatus) {
+  Widget _buildSimpleContactStatusBadge(String contactStatus) {
     Color color;
     String label;
-    IconData icon;
 
     switch (contactStatus) {
       case 'reachable':
         color = Colors.green;
         label = 'ติดต่อได้';
-        icon = Icons.phone_enabled_outlined;
         break;
       case 'unreachable':
         color = Colors.red;
         label = 'ติดต่อไม่ได้';
-        icon = Icons.phone_disabled_outlined;
         break;
       case 'pending':
         color = Colors.orange;
         label = 'รอติดต่อ';
-        icon = Icons.schedule_outlined;
         break;
       default:
         return SizedBox.shrink();
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: color.withOpacity(0.3),
-          width: 1,
+          width: 0.5,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w600,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleWarningBadge() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        'ใกล้หมดสัญญา',
+        style: TextStyle(
+          fontSize: 10,
+          color: Colors.orange[700],
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+// Compact date formatter
+  String _formatCompactDate(DateTime d) {
+    return '${d.day}/${d.month}/${d.year.toString().substring(2)}';
+  }
+
+// Enhanced Dialog Methods
+  void _showCreateAccountDialog(Map<String, dynamic> tenant) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.person_add_rounded, color: Colors.green[600]),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'สร้างบัญชีผู้ใช้',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ผู้เช่า: ${tenant['tenant_full_name']}',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  SizedBox(height: 4),
+                  Text('เบอร์โทร: ${tenant['tenant_phone']}',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      color: Colors.blue[600], size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'ระบบจะสร้างบัญชีผู้ใช้ให้กับผู้เช่าท่านนี้เพื่อเข้าใช้งานแอปพลิเคชัน',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _createUserAccountWithNavigation(tenant);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text(
+              'สร้างบัญชี',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1064,214 +1270,241 @@ class _TenantListScreenState extends State<TenantlistUi> {
     );
   }
 
-  Widget _buildTenantDetailsSheet(Map<String, dynamic> tenant) {
-    final room = tenant['rooms'];
-    final branch = tenant['branches'];
-    final tenantIn = DateTime.parse(tenant['tenant_in']);
-    final tenantOut = DateTime.parse(tenant['tenant_out']);
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle bar
-          Container(
-            width: 40,
-            height: 4,
-            margin: EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+  void _showDeleteAccountDialog(Map<String, dynamic> tenant) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.warning_rounded, color: Colors.red[600]),
             ),
-          ),
-
-          // Header
-          Padding(
-            padding: EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'รายละเอียดผู้เช่า',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+            SizedBox(width: 12),
+            Text(
+              'ลบบัญชีผู้ใช้',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ผู้เช่า: ${tenant['tenant_full_name']}',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  SizedBox(height: 4),
+                  Text('เบอร์โทร: ${tenant['tenant_phone']}',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: Colors.red[600], size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'การลบบัญชีผู้ใช้จะทำให้ผู้เช่าไม่สามารถเข้าใช้งานแอปพลิเคชันได้ คุณต้องการดำเนินการต่อหรือไม่?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteUserAccount(tenant);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text(
+              'ลบบัญชี',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteUserAccount(Map<String, dynamic> tenant) async {
+    try {
+      // Show enhanced loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.red[600]!),
+                  ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close),
+                SizedBox(height: 24),
+                Text(
+                  'กำลังลบบัญชีผู้ใช้...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+      );
 
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ข้อมูลส่วนตัว
-                  _buildDetailSection(
-                    'ข้อมูลส่วนตัว',
-                    [
-                      _buildDetailRow(
-                          'ชื่อ-นามสกุล', tenant['tenant_full_name']),
-                      _buildDetailRow('เบอร์โทรศัพท์', tenant['tenant_phone']),
-                      _buildDetailRow(
-                          'บัตรประชาชน/Passport', tenant['tenant_card']),
-                      if (tenant['tenant_code'] != null)
-                        _buildDetailRow('รหัสผู้เช่า', tenant['tenant_code']),
-                    ],
-                  ),
+      // Delete user account logic here
+      await supabase.from('tenants').update({
+        'has_account': false,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('tenant_id', tenant['tenant_id']);
 
-                  SizedBox(height: 20),
+      Navigator.pop(context); // Close loading dialog
+      _showSuccessSnackBar('ลบบัญชีผู้ใช้สำเร็จ');
+      _loadTenants();
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการลบบัญชี: $e');
+    }
+  }
 
-                  // ข้อมูลที่พัก
-                  _buildDetailSection(
-                    'ข้อมูลที่พัก',
-                    [
-                      _buildDetailRow('สาขา', branch['branch_name']),
-                      _buildDetailRow('ห้อง',
-                          '${tenant['room_number']} - ${room['room_name']}'),
-                      _buildDetailRow(
-                          'ค่าเช่า', '${room['room_rate']} บาท/เดือน'),
-                      _buildDetailRow(
-                          'เงินมัดจำ', '${room['room_deposit']} บาท'),
-                      _buildDetailRow('ประเภทห้อง', room['room_cate']),
-                    ],
-                  ),
-
-                  SizedBox(height: 20),
-
-                  // ข้อมูลสัญญา
-                  _buildDetailSection(
-                    'ข้อมูลสัญญา',
-                    [
-                      _buildDetailRow('วันที่เข้าพัก',
-                          '${tenantIn.day}/${tenantIn.month}/${tenantIn.year}'),
-                      _buildDetailRow('วันที่สิ้นสุด',
-                          '${tenantOut.day}/${tenantOut.month}/${tenantOut.year}'),
-                      _buildDetailRow(
-                          'สถานะ', _getStatusText(tenant['tenant_status'])),
-                      _buildDetailRow('สถานะการติดต่อ',
-                          _getContactStatusText(tenant['contact_status'])),
-                      _buildDetailRow('มีบัญชีผู้ใช้',
-                          tenant['has_account'] == true ? 'มี' : 'ไม่มี'),
-                      if (tenant['last_access_at'] != null)
-                        _buildDetailRow(
-                            'เข้าใช้งานล่าสุด',
-                            _formatDateTime(
-                                DateTime.parse(tenant['last_access_at']))),
-                    ],
-                  ),
-
-                  SizedBox(height: 30),
-
-                  // ปุ่มดำเนินการ
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showStatusUpdateDialog(tenant);
-                          },
-                          icon: Icon(Icons.edit),
-                          label: Text('เปลี่ยนสถานะ'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showContactStatusDialog(tenant);
-                          },
-                          icon: Icon(Icons.phone),
-                          label: Text('สถานะติดต่อ'),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(height: 20),
-                ],
+// Enhanced SnackBar methods
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        backgroundColor: Colors.green[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: EdgeInsets.all(16),
+        duration: Duration(seconds: 3),
       ),
     );
   }
 
-  Widget _buildDetailSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-        SizedBox(height: 12),
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Column(
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.error_rounded, color: Colors.white, size: 20),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
+        backgroundColor: Colors.red[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: EdgeInsets.all(16),
+        duration: Duration(seconds: 4),
       ),
     );
   }
+
+// =================== Helpers ===================
 
   void _onSearchChanged(String query) {
     setState(() {
@@ -1324,172 +1557,6 @@ class _TenantListScreenState extends State<TenantlistUi> {
   }
 
   // =================== Legacy Dialog Methods (kept for backward compatibility) ===================
-
-  // void _showTenantDetails(Map<String, dynamic> tenant) {
-  //   showModalBottomSheet(
-  //     context: context,
-  //     isScrollControlled: true,
-  //     backgroundColor: Colors.transparent,
-  //     builder: (context) => _buildTenantDetailsSheet(tenant),
-  //   );
-  // }
-
-  void _showStatusUpdateDialog(Map<String, dynamic> tenant) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('เปลี่ยนสถานะผู้เช่า'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ผู้เช่า: ${tenant['tenant_full_name']}'),
-            Text('ห้อง: ${tenant['room_number']}'),
-            SizedBox(height: 16),
-            Text('เลือกสถานะใหม่:',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('ยกเลิก'),
-          ),
-          if (tenant['tenant_status'] != 'active')
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateTenantStatus(tenant['tenant_id'], 'active');
-              },
-              child: Text('เข้าพักแล้ว', style: TextStyle(color: Colors.green)),
-            ),
-          if (tenant['tenant_status'] != 'suspended')
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateTenantStatus(tenant['tenant_id'], 'suspended');
-              },
-              child:
-                  Text('ระงับชั่วคราว', style: TextStyle(color: Colors.orange)),
-            ),
-          if (tenant['tenant_status'] != 'checkout')
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateTenantStatus(tenant['tenant_id'], 'checkout');
-              },
-              child: Text('ออกจากห้อง', style: TextStyle(color: Colors.red)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showContactStatusDialog(Map<String, dynamic> tenant) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('เปลี่ยนสถานะการติดต่อ'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ผู้เช่า: ${tenant['tenant_full_name']}'),
-            Text('เบอร์: ${tenant['tenant_phone']}'),
-            SizedBox(height: 16),
-            Text('เลือกสถานะการติดต่อ:',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('ยกเลิก'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateContactStatus(tenant['tenant_id'], 'reachable');
-            },
-            child: Text('ติดต่อได้', style: TextStyle(color: Colors.green)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateContactStatus(tenant['tenant_id'], 'unreachable');
-            },
-            child: Text('ติดต่อไม่ได้', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateContactStatus(tenant['tenant_id'], 'pending');
-            },
-            child: Text('รอติดต่อ', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'active':
-        return 'เข้าพักแล้ว';
-      case 'suspended':
-        return 'ระงับชั่วคราว';
-      case 'checkout':
-        return 'ออกจากห้อง';
-      case 'terminated':
-        return 'ยกเลิกสัญญา';
-      default:
-        return status;
-    }
-  }
-
-  String _getContactStatusText(String? contactStatus) {
-    if (contactStatus == null) return 'ไม่ระบุ';
-    switch (contactStatus) {
-      case 'reachable':
-        return 'ติดต่อได้';
-      case 'unreachable':
-        return 'ติดต่อไม่ได้';
-      case 'pending':
-        return 'รอติดต่อ';
-      default:
-        return contactStatus;
-    }
-  }
-
-  String _formatDate(DateTime d) {
-    return '${d.day.toString().padLeft(2, '0')}/'
-        '${d.month.toString().padLeft(2, '0')}/'
-        '${d.year}';
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
 
   @override
   void dispose() {

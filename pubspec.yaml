@@ -10,6 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:  # เพิ่มบรรทัดนี้
+    sdk: flutter
+
   cupertino_icons: ^1.0.8
 
   # Supabase
