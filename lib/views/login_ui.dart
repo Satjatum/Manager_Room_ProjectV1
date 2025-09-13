@@ -5,6 +5,7 @@ import 'package:manager_room_project/views/superadmin/superadmindash_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/views/user/userdash_ui.dart';
 import 'package:manager_room_project/widget/appcolors.dart';
+import 'package:manager_room_project/widget/hashpass.dart';
 import '../model/user_model.dart';
 
 class LoginUi extends StatefulWidget {
@@ -251,7 +252,8 @@ class _LoginUiState extends State<LoginUi> {
                     ),
             ),
           ),
-
+          SizedBox(height: 20),
+          const HashGeneratorCard(),
           SizedBox(height: 20),
 
           Row(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/superadmin/addtenant_ui.dart';
+import 'package:manager_room_project/views/superadmin/edittenant_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantcode_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlistdetail_ui.dart';
 import 'package:manager_room_project/widget/appbuttomnav.dart';
@@ -707,7 +708,7 @@ class _TenantListScreenState extends State<TenantlistUi> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => TenantListDetailUi(
+                                builder: (context) => EditTenantUi(
                                   tenantId: tenant['tenant_id'],
                                   onTenantUpdated: _loadTenants,
                                 ),

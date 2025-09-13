@@ -69,10 +69,10 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Future<void> _initializeData() async {
-    await _loadLookupTables();
-    await _loadBranchDetails();
-    await _loadBranchStats();
-    await _loadRoomData();
+    if (mounted) _loadLookupTables();
+    if (mounted) _loadBranchDetails();
+    if (mounted) _loadBranchStats();
+    if (mounted) _loadRoomData();
   }
 
   // โหลดตารางข้อมูลพื้นฐาน
@@ -158,6 +158,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Future<void> _loadBranchDetails() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -190,15 +191,18 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         response['owner_name'] = response['owner_name'] ?? 'ไม่ระบุ';
         response['owner_email'] = '';
       }
-
-      setState(() {
-        _branchData = response;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _branchData = response;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -211,6 +215,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   Future<void> _loadBranchStats() async {
+    if (!mounted) return;
     try {
       // โหลดสถิติห้อง จาก rooms table และ room_details view
       final roomsResponse = await supabase
@@ -268,41 +273,45 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           pendingPayments++;
         }
       }
-
-      setState(() {
-        _branchStats = {
-          'total_rooms': totalRooms,
-          'occupied_rooms': occupiedRooms,
-          'available_rooms': availableRooms,
-          'maintenance_rooms': maintenanceRooms,
-          'reserved_rooms': reservedRooms,
-          'cleaning_rooms': cleaningRooms,
-          'renovation_rooms': renovationRooms,
-          'total_tenants': totalTenants,
-          'monthly_revenue': monthlyRevenue,
-          'pending_payments': pendingPayments,
-        };
-      });
+      if (mounted) {
+        setState(() {
+          _branchStats = {
+            'total_rooms': totalRooms,
+            'occupied_rooms': occupiedRooms,
+            'available_rooms': availableRooms,
+            'maintenance_rooms': maintenanceRooms,
+            'reserved_rooms': reservedRooms,
+            'cleaning_rooms': cleaningRooms,
+            'renovation_rooms': renovationRooms,
+            'total_tenants': totalTenants,
+            'monthly_revenue': monthlyRevenue,
+            'pending_payments': pendingPayments,
+          };
+        });
+      }
     } catch (e) {
       print('Error loading stats: $e');
-      setState(() {
-        _branchStats = {
-          'total_rooms': 0,
-          'occupied_rooms': 0,
-          'available_rooms': 0,
-          'maintenance_rooms': 0,
-          'reserved_rooms': 0,
-          'cleaning_rooms': 0,
-          'renovation_rooms': 0,
-          'total_tenants': 0,
-          'monthly_revenue': 0.0,
-          'pending_payments': 0,
-        };
-      });
+      if (mounted) {
+        setState(() {
+          _branchStats = {
+            'total_rooms': 0,
+            'occupied_rooms': 0,
+            'available_rooms': 0,
+            'maintenance_rooms': 0,
+            'reserved_rooms': 0,
+            'cleaning_rooms': 0,
+            'renovation_rooms': 0,
+            'total_tenants': 0,
+            'monthly_revenue': 0.0,
+            'pending_payments': 0,
+          };
+        });
+      }
     }
   }
 
   Future<void> _loadRoomData() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingRooms = true;
     });
@@ -314,12 +323,12 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           .select('*')
           .eq('branch_id', _branchData['branch_id'])
           .order('room_number');
-
-      setState(() {
-        _rooms = List<Map<String, dynamic>>.from(roomsResponse);
-        _filteredRooms = _rooms;
-      });
-
+      if (mounted) {
+        setState(() {
+          _rooms = List<Map<String, dynamic>>.from(roomsResponse);
+          _filteredRooms = _rooms;
+        });
+      }
       _filterRooms();
     } catch (e) {
       print('Error loading rooms: $e');
@@ -330,12 +339,12 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
             .select('*')
             .eq('branch_id', _branchData['branch_id'])
             .order('room_number');
-
-        setState(() {
-          _rooms = List<Map<String, dynamic>>.from(fallbackResponse);
-          _filteredRooms = _rooms;
-        });
-
+        if (mounted) {
+          setState(() {
+            _rooms = List<Map<String, dynamic>>.from(fallbackResponse);
+            _filteredRooms = _rooms;
+          });
+        }
         _filterRooms();
       } catch (fallbackError) {
         if (mounted) {
@@ -349,9 +358,17 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
         }
       }
     } finally {
-      setState(() {
-        _isLoadingRooms = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingRooms = false;
+        });
+      }
+    }
+  }
+
+  void safeSetState(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
     }
   }
 
@@ -377,6 +394,7 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
   }
 
   void _filterRooms() {
+    if (!mounted) return;
     setState(() {
       _filteredRooms = _rooms.where((room) {
         final searchTerm = _searchQuery.toLowerCase();
@@ -421,11 +439,11 @@ class _BranchDetailScreenState extends State<BranchDetailScreen>
           'branch_image': base64String,
           'updated_at': DateTime.now().toIso8601String(),
         }).eq('branch_id', _branchData['branch_id']);
-
-        setState(() {
-          _branchData['branch_image'] = base64String;
-        });
-
+        if (mounted) {
+          setState(() {
+            _branchData['branch_image'] = base64String;
+          });
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

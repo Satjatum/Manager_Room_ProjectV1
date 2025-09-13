@@ -33,6 +33,12 @@ dependencies:
   # Shared Preferences
   shared_preferences: ^2.2.2
 
+  #Url Lanuncher
+  url_launcher: ^6.2.4
+
+  #Intl
+  intl: ^0.20.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -62,6 +62,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
   }
 
   Future<void> _loadBranches() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -159,13 +160,13 @@ class _BranchlistUiState extends State<BranchlistUi> {
 
       print(
           'Processed branches: ${branchesWithOwner.length} items'); // Debug log
-
-      setState(() {
-        _branches = branchesWithOwner;
-        _filteredBranches = _branches;
-        _isLoading = false;
-      });
-
+      if (mounted) {
+        setState(() {
+          _branches = branchesWithOwner;
+          _filteredBranches = _branches;
+          _isLoading = false;
+        });
+      }
       // แสดงผลลัพธ์
       if (mounted) {
         if (_branches.isEmpty) {
@@ -201,6 +202,8 @@ class _BranchlistUiState extends State<BranchlistUi> {
     }
   }
 
+  
+
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query;
@@ -216,6 +219,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
   }
 
   void _filterBranches() {
+    if (!mounted) return;
     setState(() {
       _filteredBranches = _branches.where((branch) {
         final searchTerm = _searchQuery.toLowerCase();
