@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/services/auth_service.dart';
-import 'package:manager_room_project/views/superadmin/addbiling_ui.dart';
 import 'package:manager_room_project/views/superadmin/billinglist_ui.dart';
-
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
-
 import 'package:manager_room_project/views/superadmin/reportmanagement_ui.dart';
 import 'package:manager_room_project/views/superadmin/setting_ui.dart';
 import 'package:manager_room_project/views/superadmin/superadmindash_ui.dart';
@@ -49,7 +46,7 @@ class AppBottomNav extends StatelessWidget {
         const BranchlistUi(), // 1: สาขา (เฉพาะสาขาตัวเอง)
         const TenantlistUi(), // 2: ผู้เช่า
         const IssueManagementScreen(), // 3: แจ้งเตือน
-        const AddBillingScreen(), // 4: ออกบิล
+        const BillListScreen(), // 4: ออกบิล
         const SettingUi(), // 5: ตั้งค่า
       ];
     } else if (currentUser.userRole.toString().contains('user')) {

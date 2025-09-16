@@ -111,6 +111,19 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
         setState(() {
           _branches = List<Map<String, dynamic>>.from(response);
         });
+      } else if (_currentUser?.isAdmin == true &&
+          _currentUser?.branchId != null) {
+        // Admin ปกติเห็นเฉพาะสาขาของตัวเอง
+        final response = await supabase
+            .from('branches')
+            .select('*')
+            .eq('branch_id', _currentUser!.branchId!)
+            .eq('branch_status', 'active')
+            .order('branch_name');
+
+        setState(() {
+          _branches = List<Map<String, dynamic>>.from(response);
+        });
       }
     } catch (e) {
       print('Error loading branches: $e');
@@ -502,6 +515,28 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
     }
   }
 
+  Future<String> _getBranchName() async {
+    if (_branches.isNotEmpty) {
+      return _branches.first['branch_name'];
+    }
+
+    // ถ้า _branches ว่าง ให้ดึงข้อมูลจากฐานข้อมูลโดยตรง
+    try {
+      if (_currentUser?.branchId != null) {
+        final response = await supabase
+            .from('branches')
+            .select('branch_name')
+            .eq('branch_id', _currentUser!.branchId!)
+            .single();
+        return response['branch_name'] ?? 'ไม่พบข้อมูล';
+      }
+    } catch (e) {
+      print('Error getting branch name: $e');
+    }
+
+    return 'ไม่พบข้อมูลสาขา';
+  }
+
   Future<String> _generateBillNumber() async {
     try {
       final now = DateTime.now();
@@ -862,41 +897,71 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
       children: [
         _buildSectionTitle('เลือกสาขา'),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: DropdownButtonFormField<String>(
-            value: _selectedBranchId,
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.business, color: AppColors.primary),
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              hintText: 'เลือกสาขา',
+
+        // ถ้าเป็น Admin ปกติ แสดงข้อมูลสาขาของตัวเองแบบไม่สามารถเปลี่ยนได้
+        if (_currentUser?.isAdmin == true &&
+            !(_currentUser?.isSuperAdmin == true)) ...[
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[200]!),
             ),
-            items: _branches.map((branch) {
-              return DropdownMenuItem<String>(
-                value: branch['branch_id'],
-                child: Text(branch['branch_name']),
-              );
-            }).toList(),
-            onChanged: (value) async {
-              setState(() {
-                _selectedBranchId = value;
-                _selectedTenantId = null;
-                _selectedTenant = null;
-                _tenants.clear();
-              });
-              if (value != null) {
-                await _loadTenants();
-              }
-            },
-            validator: (value) => value == null ? 'กรุณาเลือกสาขา' : null,
+            child: Row(
+              children: [
+                Icon(Icons.business, color: Colors.blue[600]),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'สาขา: ${_branches.isNotEmpty ? _branches.first['branch_name'] : 'ไม่พบข้อมูลสาขา'}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ] else ...[
+          // สำหรับ SuperAdmin ให้เลือกสาขาได้
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: _selectedBranchId,
+              decoration: InputDecoration(
+                prefixIcon: Icon(Icons.business, color: AppColors.primary),
+                border: InputBorder.none,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                hintText: 'เลือกสาขา',
+              ),
+              items: _branches.map((branch) {
+                return DropdownMenuItem<String>(
+                  value: branch['branch_id'],
+                  child: Text(branch['branch_name']),
+                );
+              }).toList(),
+              onChanged: (value) async {
+                setState(() {
+                  _selectedBranchId = value;
+                  _selectedTenantId = null;
+                  _selectedTenant = null;
+                  _tenants.clear();
+                });
+                if (value != null) {
+                  await _loadTenants();
+                }
+              },
+              validator: (value) => value == null ? 'กรุณาเลือกสาขา' : null,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1288,32 +1353,32 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
           ),
 
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildNumberField(
-                  label: 'หน่วยที่ใช้',
-                  value: consumption.toString(),
-                  enabled: false,
-                  suffix: item['unit_name'],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildNumberField(
-                  label: 'ราคาต่อหน่วย',
-                  value: ratePerUnit.toString(),
-                  onChanged: (value) {
-                    setState(() {
-                      item['rate_per_unit'] = double.tryParse(value) ?? 0.0;
-                      _calculateUtilityAmount(item);
-                    });
-                  },
-                  suffix: 'บาท',
-                ),
-              ),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _buildNumberField(
+          //         label: 'หน่วยที่ใช้',
+          //         value: consumption.toString(),
+          //         enabled: false,
+          //         suffix: item['unit_name'],
+          //       ),
+          //     ),
+          //     const SizedBox(width: 12),
+          //     Expanded(
+          //       child: _buildNumberField(
+          //         label: 'ราคาต่อหน่วย',
+          //         value: ratePerUnit.toString(),
+          //         onChanged: (value) {
+          //           setState(() {
+          //             item['rate_per_unit'] = double.tryParse(value) ?? 0.0;
+          //             _calculateUtilityAmount(item);
+          //           });
+          //         },
+          //         suffix: 'บาท',
+          //       ),
+          //     ),
+          //   ],
+          // ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
@@ -1669,6 +1734,8 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // ค่าเช่าห้อง
           _buildSummaryRow(
               'ค่าเช่าห้อง', double.tryParse(_roomRentController.text) ?? 0.0),
 
@@ -1720,10 +1787,67 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
                     0.0, (sum, item) => sum + (item['amount'] ?? 0.0))),
           ],
 
-          _buildSummaryRow(
-              'ค่าใช้จ่ายอื่นๆ',
-              _otherItems.fold(
-                  0.0, (sum, item) => sum + (item['amount'] ?? 0.0))),
+          // แสดงรายละเอียดค่าใช้จ่ายอื่นๆ เป็น list
+          if (_otherItems.isNotEmpty) ...[
+            ...(_otherItems
+                .where((item) => (item['amount'] ?? 0.0) > 0)
+                .map((item) {
+              final quantity = item['quantity'] ?? 1.0;
+              final unitPrice = item['unit_price'] ?? 0.0;
+              final amount = item['amount'] ?? 0.0;
+
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['item_name'] ?? 'ไม่ระบุชื่อรายการ',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                          if (item['item_description'] != null &&
+                              item['item_description']
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty)
+                            Text(
+                              item['item_description'],
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          Text(
+                            '${NumberFormat('#,##0.0').format(quantity)} x ${NumberFormat('#,##0.00').format(unitPrice)} บาท',
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${NumberFormat('#,##0.00').format(amount)} บาท',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              );
+            }).toList()),
+          ] else ...[
+            // แสดงเฉพาะเมื่อไม่มีรายการแต่ยังมียอดรวม (กรณีที่มีปัญหาข้อมูล)
+            if (_otherItems.fold(
+                    0.0, (sum, item) => sum + (item['amount'] ?? 0.0)) >
+                0)
+              _buildSummaryRow(
+                  'ค่าใช้จ่ายอื่นๆ',
+                  _otherItems.fold(
+                      0.0, (sum, item) => sum + (item['amount'] ?? 0.0))),
+          ],
+
           Divider(thickness: 1, color: Colors.grey[300]),
           _buildSummaryRow('ยอดรวมย่อย', _calculateSubtotal(),
               isSubtotal: true),

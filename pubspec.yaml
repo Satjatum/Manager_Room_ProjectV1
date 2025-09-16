@@ -39,6 +39,16 @@ dependencies:
   #Intl
   intl: ^0.20.2
 
+  #PDF
+  pdf: ^3.10.4
+
+  #Path Provider
+  path_provider: ^2.1.1
+
+  #Share Plus
+  share_plus: ^7.2.1
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -49,3 +59,4 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/fonts/
