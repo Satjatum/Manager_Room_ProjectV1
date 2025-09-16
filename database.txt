@@ -1,0 +1,981 @@
+create table public.users (
+  user_id uuid not null default gen_random_uuid (),
+  user_email character varying not null,
+  username character varying not null,
+  user_pass character varying not null,
+  user_role character varying not null,
+  user_status character varying null default 'active'::character varying,
+  branch_id uuid null,
+  branch_name character varying null,
+  user_profile text null,
+  user_permission jsonb null default '[]'::jsonb,
+  tenant_id uuid null,
+  last_login timestamp without time zone null,
+  created_by uuid null,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint users_pkey primary key (user_id),
+  constraint users_user_email_key unique (user_email),
+  constraint users_username_key unique (username),
+  constraint fk_users_tenant foreign KEY (tenant_id) references tenants (tenant_id) on delete set null,
+  constraint users_branch_id_fkey foreign KEY (branch_id) references branches (branch_id),
+  constraint users_created_by_fkey foreign KEY (created_by) references users (user_id)
+) TABLESPACE pg_default;
+
+create table public.tenants (
+  tenant_id uuid not null default gen_random_uuid (),
+  branch_id uuid not null,
+  room_id uuid not null,
+  room_number character varying not null,
+  tenant_full_name character varying not null,
+  tenant_phone character varying not null,
+  tenant_card character varying not null,
+  tenant_in timestamp without time zone not null,
+  tenant_out timestamp without time zone not null,
+  tenant_status character varying null default 'active'::character varying,
+  user_id uuid null,
+  last_access_at timestamp without time zone null,
+  created_by uuid null,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  tenant_code character varying null,
+  has_account boolean null default false,
+  contact_status character varying(20) null default 'pending'::character varying,
+  constraint tenants_pkey primary key (tenant_id),
+  constraint tenants_tenant_card_key unique (tenant_card),
+  constraint tenants_tenant_code_key unique (tenant_code),
+  constraint tenants_user_id_fkey foreign KEY (user_id) references users (user_id),
+  constraint tenants_room_id_fkey foreign KEY (room_id) references rooms (room_id),
+  constraint tenants_created_by_fkey foreign KEY (created_by) references users (user_id),
+  constraint tenants_branch_id_fkey foreign KEY (branch_id) references branches (branch_id)
+) TABLESPACE pg_default;
+
+create view public.tenant_details as
+select
+  t.tenant_id,
+  t.tenant_full_name,
+  t.tenant_phone,
+  t.tenant_card,
+  t.tenant_in,
+  t.tenant_out,
+  t.tenant_status,
+  u.user_profile,
+  r.room_number,
+  r.room_name,
+  r.room_rate,
+  r.room_deposit,
+  b.branch_name,
+  b.branch_address,
+  case
+    when t.tenant_out < now() then 'expired'::text
+    when (t.tenant_out::timestamp with time zone - now()) <= '30 days'::interval then 'expiring_soon'::text
+    else 'active'::text
+  end as contract_status,
+  t.created_at,
+  t.updated_at
+from
+  tenants t
+  join rooms r on t.room_id = r.room_id
+  join branches b on t.branch_id = b.branch_id
+  left join users u on t.user_id = u.user_id;
+
+create table public.rooms (
+  room_id uuid not null default gen_random_uuid (),
+  branch_id uuid not null,
+  branch_name character varying not null,
+  room_number character varying not null,
+  room_name character varying not null,
+  room_cate character varying not null,
+  room_type character varying not null,
+  room_rate numeric(10, 2) not null,
+  room_deposit numeric(10, 2) not null,
+  room_max integer null default 1,
+  room_size numeric(5, 2) null,
+  room_fac jsonb null default '[]'::jsonb,
+  room_status character varying null default 'available'::character varying,
+  room_images text null,
+  room_des text null,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  category_id uuid null,
+  type_id uuid null,
+  status_id uuid null,
+  constraint rooms_pkey primary key (room_id),
+  constraint rooms_branch_id_room_number_key unique (branch_id, room_number),
+  constraint rooms_branch_id_fkey foreign KEY (branch_id) references branches (branch_id) on delete CASCADE,
+  constraint rooms_category_id_fkey foreign KEY (category_id) references room_categories (category_id),
+  constraint rooms_status_id_fkey foreign KEY (status_id) references room_status_types (status_id),
+  constraint rooms_type_id_fkey foreign KEY (type_id) references room_types (type_id)
+) TABLESPACE pg_default;
+
+create table public.room_types (
+  type_id uuid not null default gen_random_uuid (),
+  type_code character varying not null,
+  type_name character varying not null,
+  type_description text null,
+  type_icon character varying null,
+  default_max_occupants integer null default 1,
+  display_order integer null default 0,
+  is_active boolean null default true,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint room_types_pkey primary key (type_id),
+  constraint room_types_type_code_key unique (type_code)
+) TABLESPACE pg_default;
+
+create view public.room_type_stats as
+select
+  rt.type_id,
+  rt.type_code,
+  rt.type_name,
+  rt.default_max_occupants,
+  count(r.room_id) as total_rooms,
+  count(
+    case
+      when rst.status_code::text = 'available'::text then 1
+      else null::integer
+    end
+  ) as available_rooms,
+  count(
+    case
+      when rst.status_code::text = 'occupied'::text then 1
+      else null::integer
+    end
+  ) as occupied_rooms,
+  avg(r.room_rate) as avg_rate
+from
+  room_types rt
+  left join rooms r on rt.type_id = r.type_id
+  left join room_status_types rst on r.status_id = rst.status_id
+where
+  rt.is_active = true
+group by
+  rt.type_id,
+  rt.type_code,
+  rt.type_name,
+  rt.default_max_occupants
+order by
+  rt.display_order;
+
+create table public.room_status_types (
+  status_id uuid not null default gen_random_uuid (),
+  status_code character varying not null,
+  status_name character varying not null,
+  status_description text null,
+  status_icon character varying null,
+  status_color character varying null default '#4CAF50'::character varying,
+  can_book boolean null default true,
+  display_order integer null default 0,
+  is_active boolean null default true,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint room_status_types_pkey primary key (status_id),
+  constraint room_status_types_status_code_key unique (status_code)
+) TABLESPACE pg_default;
+
+create table public.room_facilities (
+  facility_id uuid not null default gen_random_uuid (),
+  facility_code character varying not null,
+  facility_name character varying not null,
+  facility_description text null,
+  facility_icon character varying null,
+  facility_category character varying null,
+  display_order integer null default 0,
+  is_active boolean null default true,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint room_facilities_pkey primary key (facility_id),
+  constraint room_facilities_facility_code_key unique (facility_code)
+) TABLESPACE pg_default;
+
+
+create view public.room_details as
+select
+  r.room_id,
+  r.branch_id,
+  r.branch_name,
+  r.room_number,
+  r.room_name,
+  rc.category_code,
+  rc.category_name,
+  rc.category_description,
+  rc.category_icon,
+  rc.category_color,
+  rt.type_code,
+  rt.type_name,
+  rt.type_description,
+  rt.type_icon,
+  rt.default_max_occupants,
+  rst.status_code,
+  rst.status_name,
+  rst.status_description,
+  rst.status_icon,
+  rst.status_color,
+  rst.can_book,
+  r.room_rate,
+  r.room_deposit,
+  r.room_max,
+  r.room_size,
+  r.room_fac,
+  r.room_images,
+  r.room_des,
+  r.created_at,
+  r.updated_at
+from
+  rooms r
+  left join room_categories rc on r.category_id = rc.category_id
+  left join room_types rt on r.type_id = rt.type_id
+  left join room_status_types rst on r.status_id = rst.status_id;
+
+create view public.room_category_stats as
+select
+  rc.category_id,
+  rc.category_code,
+  rc.category_name,
+  rc.category_color,
+  count(r.room_id) as total_rooms,
+  count(
+    case
+      when rst.status_code::text = 'available'::text then 1
+      else null::integer
+    end
+  ) as available_rooms,
+  count(
+    case
+      when rst.status_code::text = 'occupied'::text then 1
+      else null::integer
+    end
+  ) as occupied_rooms,
+  avg(r.room_rate) as avg_rate,
+  min(r.room_rate) as min_rate,
+  max(r.room_rate) as max_rate
+from
+  room_categories rc
+  left join rooms r on rc.category_id = r.category_id
+  left join room_status_types rst on r.status_id = rst.status_id
+where
+  rc.is_active = true
+group by
+  rc.category_id,
+  rc.category_code,
+  rc.category_name,
+  rc.category_color
+order by
+  rc.display_order;
+
+create table public.room_categories (
+  category_id uuid not null default gen_random_uuid (),
+  category_code character varying not null,
+  category_name character varying not null,
+  category_description text null,
+  category_icon character varying null,
+  category_color character varying null default '#2196F3'::character varying,
+  display_order integer null default 0,
+  is_active boolean null default true,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint room_categories_pkey primary key (category_id),
+  constraint room_categories_category_code_key unique (category_code)
+) TABLESPACE pg_default;
+
+create view public.latest_branch_statistics as
+select
+  bs.stats_id,
+  bs.branch_id,
+  bs.stats_date,
+  bs.stats_type,
+  bs.total_rooms,
+  bs.occupied_rooms,
+  bs.available_rooms,
+  bs.maintenance_rooms,
+  bs.reserved_rooms,
+  bs.occupancy_rate,
+  bs.total_tenants,
+  bs.active_tenants,
+  bs.new_tenants,
+  bs.checkout_tenants,
+  bs.total_revenue,
+  bs.rent_revenue,
+  bs.utilities_revenue,
+  bs.other_revenue,
+  bs.paid_bills,
+  bs.pending_bills,
+  bs.overdue_bills,
+  bs.total_bills,
+  bs.average_room_rate,
+  bs.highest_room_rate,
+  bs.lowest_room_rate,
+  bs.created_at,
+  bs.updated_at,
+  b.branch_name,
+  b.branch_status
+from
+  branch_statistics bs
+  join branches b on bs.branch_id = b.branch_id
+where
+  bs.stats_date = (
+    (
+      select
+        max(bs2.stats_date) as max
+      from
+        branch_statistics bs2
+      where
+        bs2.branch_id = bs.branch_id
+        and bs2.stats_type::text = bs.stats_type::text
+    )
+  );
+
+create view public.issues_detailed as
+select
+  i.issue_id,
+  i.branch_id,
+  i.room_id,
+  i.tenant_id,
+  i.issue_title,
+  i.issue_description,
+  i.issue_category,
+  i.issue_priority,
+  i.issue_status,
+  i.issue_images,
+  i.reported_by,
+  i.assigned_to,
+  i.resolved_by,
+  i.reported_date,
+  i.acknowledged_date,
+  i.started_date,
+  i.resolved_date,
+  i.closed_date,
+  i.admin_notes,
+  i.resolution_notes,
+  i.tenant_rating,
+  i.tenant_feedback,
+  i.created_at,
+  i.updated_at,
+  t.tenant_full_name,
+  t.tenant_phone,
+  COALESCE(r.room_number, 'ไม่ระบุ'::character varying) as room_number,
+  COALESCE(r.room_name, ''::character varying) as room_name,
+  b.branch_name,
+  reported_user.username as reported_by_name,
+  assigned_user.username as assigned_to_name,
+  resolved_user.username as resolved_by_name,
+  case
+    when i.resolved_date is not null then EXTRACT(
+      epoch
+      from
+        i.resolved_date - i.reported_date
+    ) / 3600::numeric
+    else EXTRACT(
+      epoch
+      from
+        now() - i.reported_date::timestamp with time zone
+    ) / 3600::numeric
+  end as hours_elapsed
+from
+  issues i
+  join tenants t on i.tenant_id = t.tenant_id
+  left join rooms r on i.room_id = r.room_id
+  join branches b on i.branch_id = b.branch_id
+  left join users reported_user on i.reported_by = reported_user.user_id
+  left join users assigned_user on i.assigned_to = assigned_user.user_id
+  left join users resolved_user on i.resolved_by = resolved_user.user_id;
+
+create table public.issues (
+  issue_id uuid not null default gen_random_uuid (),
+  branch_id uuid not null,
+  room_id uuid null,
+  tenant_id uuid not null,
+  issue_title character varying(255) not null,
+  issue_description text not null,
+  issue_category character varying(50) not null default 'other'::character varying,
+  issue_priority character varying(20) null default 'normal'::character varying,
+  issue_status character varying(20) null default 'reported'::character varying,
+  issue_images text null,
+  reported_by uuid not null,
+  assigned_to uuid null,
+  resolved_by uuid null,
+  reported_date timestamp without time zone null default now(),
+  acknowledged_date timestamp without time zone null,
+  started_date timestamp without time zone null,
+  resolved_date timestamp without time zone null,
+  closed_date timestamp without time zone null,
+  admin_notes text null,
+  resolution_notes text null,
+  tenant_rating integer null,
+  tenant_feedback text null,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint issues_pkey primary key (issue_id),
+  constraint issues_branch_id_fkey foreign KEY (branch_id) references branches (branch_id),
+  constraint issues_reported_by_fkey foreign KEY (reported_by) references users (user_id),
+  constraint issues_resolved_by_fkey foreign KEY (resolved_by) references users (user_id),
+  constraint issues_room_id_fkey foreign KEY (room_id) references rooms (room_id),
+  constraint issues_tenant_id_fkey foreign KEY (tenant_id) references tenants (tenant_id),
+  constraint issues_assigned_to_fkey foreign KEY (assigned_to) references users (user_id),
+  constraint issues_tenant_rating_check check (
+    (
+      (tenant_rating >= 1)
+      and (tenant_rating <= 5)
+    )
+  )
+) TABLESPACE pg_default;
+
+create table public.issue_updates (
+  update_id uuid not null default gen_random_uuid (),
+  issue_id uuid not null,
+  updated_by uuid not null,
+  update_type character varying(50) not null,
+  old_status character varying(20) null,
+  new_status character varying(20) null,
+  update_message text null,
+  update_images text null,
+  created_at timestamp without time zone null default now(),
+  constraint issue_updates_pkey primary key (update_id),
+  constraint issue_updates_issue_id_fkey foreign KEY (issue_id) references issues (issue_id) on delete CASCADE,
+  constraint issue_updates_updated_by_fkey foreign KEY (updated_by) references users (user_id)
+) TABLESPACE pg_default;
+
+
+create table public.branches (
+  branch_id uuid not null default gen_random_uuid (),
+  branch_name character varying not null,
+  branch_address text not null,
+  branch_phone character varying not null,
+  owner_id uuid null,
+  owner_name character varying not null,
+  branch_status character varying null default 'active'::character varying,
+  branch_image text null,
+  description text null,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint branches_pkey primary key (branch_id),
+  constraint fk_branches_owner foreign KEY (owner_id) references users (user_id)
+) TABLESPACE pg_default;
+
+create table public.branch_statistics (
+  stats_id uuid not null default gen_random_uuid (),
+  branch_id uuid not null,
+  stats_date date not null,
+  stats_type character varying not null,
+  total_rooms integer null default 0,
+  occupied_rooms integer null default 0,
+  available_rooms integer null default 0,
+  maintenance_rooms integer null default 0,
+  reserved_rooms integer null default 0,
+  occupancy_rate numeric(5, 2) null default 0.00,
+  total_tenants integer null default 0,
+  active_tenants integer null default 0,
+  new_tenants integer null default 0,
+  checkout_tenants integer null default 0,
+  total_revenue numeric(12, 2) null default 0.00,
+  rent_revenue numeric(12, 2) null default 0.00,
+  utilities_revenue numeric(12, 2) null default 0.00,
+  other_revenue numeric(12, 2) null default 0.00,
+  paid_bills integer null default 0,
+  pending_bills integer null default 0,
+  overdue_bills integer null default 0,
+  total_bills integer null default 0,
+  average_room_rate numeric(10, 2) null default 0.00,
+  highest_room_rate numeric(10, 2) null default 0.00,
+  lowest_room_rate numeric(10, 2) null default 0.00,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint branch_statistics_pkey primary key (stats_id),
+  constraint branch_statistics_branch_id_stats_date_stats_type_key unique (branch_id, stats_date, stats_type),
+  constraint branch_statistics_branch_id_fkey foreign KEY (branch_id) references branches (branch_id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create view public.branch_room_stats as
+select
+  b.branch_id,
+  b.branch_name,
+  count(r.room_id) as total_rooms,
+  count(
+    case
+      when r.room_status::text = 'available'::text then 1
+      else null::integer
+    end
+  ) as available_rooms,
+  count(
+    case
+      when r.room_status::text = 'occupied'::text then 1
+      else null::integer
+    end
+  ) as occupied_rooms,
+  count(
+    case
+      when r.room_status::text = 'maintenance'::text then 1
+      else null::integer
+    end
+  ) as maintenance_rooms,
+  round(
+    count(
+      case
+        when r.room_status::text = 'occupied'::text then 1
+        else null::integer
+      end
+    )::numeric / NULLIF(count(r.room_id), 0)::numeric * 100::numeric,
+    2
+  ) as occupancy_rate
+from
+  branches b
+  left join rooms r on b.branch_id = r.branch_id
+group by
+  b.branch_id,
+  b.branch_name;
+
+
+-- ====================================================================
+-- RENTAL BILLING SYSTEM SCHEMA - FIXED VERSION
+-- ระบบบิลค่าเช่า รองรับ database.txt ที่มีอยู่
+-- ====================================================================
+
+-- 1. ตารางสำหรับประเภทค่าใช้จ่าย (Utility Types)
+create table public.utility_types (
+  utility_type_id uuid not null default gen_random_uuid(),
+  type_code character varying(20) not null,
+  type_name character varying(100) not null,
+  type_description text null,
+  unit_name character varying(50) not null, -- หน่วย เช่น "หน่วย", "ลบ.ม.", "คน", "ชิ้น"
+  is_metered boolean not null default true, -- true = คิดตามมิเตอร์, false = ค่าคงที่
+  default_rate numeric(10, 2) not null default 0.00, -- ราคาต่อหน่วยเริ่มต้น
+  is_active boolean not null default true,
+  display_order integer not null default 0,
+  created_at timestamp without time zone not null default now(),
+  updated_at timestamp without time zone not null default now(),
+  constraint utility_types_pkey primary key (utility_type_id),
+  constraint utility_types_type_code_key unique (type_code)
+) tablespace pg_default;
+
+-- 2. ตารางสำหรับอัตราค่าใช้จ่ายแต่ละสาขา (Branch Utility Rates)
+create table public.branch_utility_rates (
+  rate_id uuid not null default gen_random_uuid(),
+  branch_id uuid not null,
+  utility_type_id uuid not null,
+  rate_per_unit numeric(10, 2) not null default 0.00,
+  minimum_charge numeric(10, 2) not null default 0.00,
+  fixed_monthly_charge numeric(10, 2) not null default 0.00,
+  effective_date date not null default current_date,
+  is_active boolean not null default true,
+  created_by uuid null,
+  created_at timestamp without time zone not null default now(),
+  updated_at timestamp without time zone not null default now(),
+  constraint branch_utility_rates_pkey primary key (rate_id),
+  constraint branch_utility_rates_branch_id_fkey 
+    foreign key (branch_id) references branches (branch_id) on delete cascade,
+  constraint branch_utility_rates_utility_type_id_fkey 
+    foreign key (utility_type_id) references utility_types (utility_type_id),
+  constraint branch_utility_rates_created_by_fkey 
+    foreign key (created_by) references users (user_id),
+  constraint branch_utility_rates_branch_utility_unique 
+    unique (branch_id, utility_type_id, effective_date)
+) tablespace pg_default;
+
+-- 3. ตารางสำหรับข้อมูลมิเตอร์ของห้องพัก (Room Meters)
+create table public.room_meters (
+  meter_id uuid not null default gen_random_uuid(),
+  room_id uuid not null,
+  utility_type_id uuid not null,
+  meter_serial character varying(50) null,
+  initial_reading numeric(10, 2) not null default 0.00,
+  is_active boolean not null default true,
+  installation_date date not null default current_date,
+  last_reading_date date null,
+  created_at timestamp without time zone not null default now(),
+  updated_at timestamp without time zone not null default now(),
+  constraint room_meters_pkey primary key (meter_id),
+  constraint room_meters_room_id_fkey 
+    foreign key (room_id) references rooms (room_id) on delete cascade,
+  constraint room_meters_utility_type_id_fkey 
+    foreign key (utility_type_id) references utility_types (utility_type_id),
+  constraint room_meters_room_utility_unique 
+    unique (room_id, utility_type_id)
+) tablespace pg_default;
+
+-- 4. ตารางสำหรับบันทึกการอ่านมิเตอร์ (Meter Readings)
+create table public.meter_readings (
+  reading_id uuid not null default gen_random_uuid(),
+  meter_id uuid not null,
+  reading_date date not null,
+  previous_reading numeric(10, 2) not null default 0.00,
+  current_reading numeric(10, 2) not null,
+  consumption numeric(10, 2) generated always as (current_reading - previous_reading) stored,
+  read_by uuid not null,
+  notes text null,
+  is_estimated boolean not null default false,
+  created_at timestamp without time zone not null default now(),
+  constraint meter_readings_pkey primary key (reading_id),
+  constraint meter_readings_meter_id_fkey 
+    foreign key (meter_id) references room_meters (meter_id) on delete cascade,
+  constraint meter_readings_read_by_fkey 
+    foreign key (read_by) references users (user_id),
+  constraint meter_readings_meter_date_unique 
+    unique (meter_id, reading_date),
+  constraint meter_readings_current_gte_previous 
+    check (current_reading >= previous_reading)
+) tablespace pg_default;
+
+-- 5. ตารางสำหรับบิลค่าเช่า (Rental Bills) - แก้ไข generated columns
+create table public.rental_bills (
+  bill_id uuid not null default gen_random_uuid(),
+  bill_number character varying(50) not null,
+  tenant_id uuid not null,
+  room_id uuid not null,
+  branch_id uuid not null,
+  billing_period_start date not null,
+  billing_period_end date not null,
+  
+  -- ค่าเช่า
+  room_rent numeric(12, 2) not null default 0.00,
+  
+  -- รวมค่าสาธารณูปโภค
+  total_utilities numeric(12, 2) not null default 0.00,
+  
+  -- ค่าใช้จ่ายอื่นๆ
+  other_charges numeric(12, 2) not null default 0.00,
+  
+  -- ยอดรวม (เปลี่ยนจาก generated column เป็น regular column)
+  subtotal numeric(12, 2) not null default 0.00,
+  discount numeric(12, 2) not null default 0.00,
+  tax_amount numeric(12, 2) not null default 0.00,
+  total_amount numeric(12, 2) not null default 0.00,
+  
+  -- ข้อมูลการชำระเงิน
+  paid_amount numeric(12, 2) not null default 0.00,
+  outstanding_amount numeric(12, 2) not null default 0.00,
+  
+  -- สถานะ
+  bill_status character varying(20) not null default 'pending',
+  due_date date not null,
+  paid_date timestamp without time zone null,
+  
+  -- ข้อมูลเพิ่มเติม
+  notes text null,
+  late_fee numeric(12, 2) not null default 0.00,
+  
+  -- ข้อมูลการสร้างและอัปเดต
+  created_by uuid not null,
+  created_at timestamp without time zone not null default now(),
+  updated_at timestamp without time zone not null default now(),
+  
+  constraint rental_bills_pkey primary key (bill_id),
+  constraint rental_bills_bill_number_key unique (bill_number),
+  constraint rental_bills_tenant_id_fkey 
+    foreign key (tenant_id) references tenants (tenant_id),
+  constraint rental_bills_room_id_fkey 
+    foreign key (room_id) references rooms (room_id),
+  constraint rental_bills_branch_id_fkey 
+    foreign key (branch_id) references branches (branch_id),
+  constraint rental_bills_created_by_fkey 
+    foreign key (created_by) references users (user_id),
+  constraint rental_bills_status_check 
+    check (bill_status in ('draft', 'pending', 'paid', 'overdue', 'cancelled', 'partial')),
+  constraint rental_bills_period_check 
+    check (billing_period_end >= billing_period_start)
+) tablespace pg_default;
+
+-- 6. ตารางสำหรับรายการค่าสาธารณูปโภคในบิล (Bill Utility Items)
+create table public.bill_utility_items (
+  item_id uuid not null default gen_random_uuid(),
+  bill_id uuid not null,
+  utility_type_id uuid not null,
+  meter_id uuid null,
+  
+  -- ข้อมูลการใช้งาน
+  previous_reading numeric(10, 2) null,
+  current_reading numeric(10, 2) null,
+  consumption numeric(10, 2) not null default 0.00,
+  
+  -- ข้อมูลอัตราค่าบริการ
+  rate_per_unit numeric(10, 2) not null,
+  minimum_charge numeric(10, 2) not null default 0.00,
+  fixed_charge numeric(10, 2) not null default 0.00,
+  
+  -- จำนวนเงิน
+  amount numeric(12, 2) not null,
+  
+  created_at timestamp without time zone not null default now(),
+  
+  constraint bill_utility_items_pkey primary key (item_id),
+  constraint bill_utility_items_bill_id_fkey 
+    foreign key (bill_id) references rental_bills (bill_id) on delete cascade,
+  constraint bill_utility_items_utility_type_id_fkey 
+    foreign key (utility_type_id) references utility_types (utility_type_id),
+  constraint bill_utility_items_meter_id_fkey 
+    foreign key (meter_id) references room_meters (meter_id),
+  constraint bill_utility_items_bill_utility_unique 
+    unique (bill_id, utility_type_id)
+) tablespace pg_default;
+
+-- 7. ตารางสำหรับรายการค่าใช้จ่ายอื่นๆ (Bill Other Items)
+create table public.bill_other_items (
+  item_id uuid not null default gen_random_uuid(),
+  bill_id uuid not null,
+  item_name character varying(100) not null,
+  item_description text null,
+  quantity numeric(10, 2) not null default 1.00,
+  unit_price numeric(10, 2) not null,
+  amount numeric(12, 2) generated always as (quantity * unit_price) stored,
+  created_at timestamp without time zone not null default now(),
+  
+  constraint bill_other_items_pkey primary key (item_id),
+  constraint bill_other_items_bill_id_fkey 
+    foreign key (bill_id) references rental_bills (bill_id) on delete cascade
+) tablespace pg_default;
+
+-- 8. ตารางสำหรับประวัติการชำระเงิน (Payment History)
+create table public.payment_history (
+  payment_id uuid not null default gen_random_uuid(),
+  bill_id uuid not null,
+  payment_date timestamp without time zone not null default now(),
+  payment_amount numeric(12, 2) not null,
+  payment_method character varying(50) not null default 'cash',
+  payment_reference character varying(100) null,
+  payment_notes text null,
+  received_by uuid not null,
+  created_at timestamp without time zone not null default now(),
+  
+  constraint payment_history_pkey primary key (payment_id),
+  constraint payment_history_bill_id_fkey 
+    foreign key (bill_id) references rental_bills (bill_id),
+  constraint payment_history_received_by_fkey 
+    foreign key (received_by) references users (user_id),
+  constraint payment_history_method_check 
+    check (payment_method in ('cash', 'transfer', 'card', 'check', 'online'))
+) tablespace pg_default;
+
+-- ====================================================================
+-- VIEWS สำหรับการแสดงผล
+-- ====================================================================
+
+-- 1. View สำหรับแสดงข้อมูลบิลแบบรวม
+create view public.bill_summary as
+select 
+  rb.bill_id,
+  rb.bill_number,
+  rb.billing_period_start,
+  rb.billing_period_end,
+  rb.due_date,
+  rb.bill_status,
+  
+  -- ข้อมูลผู้เช่า
+  t.tenant_full_name,
+  t.tenant_phone,
+  
+  -- ข้อมูลห้อง
+  r.room_number,
+  r.room_name,
+  b.branch_name,
+  
+  -- จำนวนเงิน
+  rb.room_rent,
+  rb.total_utilities,
+  rb.other_charges,
+  rb.subtotal,
+  rb.discount,
+  rb.tax_amount,
+  rb.total_amount,
+  rb.paid_amount,
+  rb.outstanding_amount,
+  rb.late_fee,
+  
+  -- สถานะการชำระเงิน
+  case 
+    when rb.outstanding_amount <= 0 then 'ชำระครบแล้ว'
+    when rb.due_date < current_date then 'เกินกำหนด'
+    else 'รอชำระ'
+  end as payment_status,
+  
+  rb.created_at,
+  rb.updated_at,
+  
+  -- ข้อมูลผู้สร้าง
+  u.username as created_by_name
+  
+from rental_bills rb
+join tenants t on rb.tenant_id = t.tenant_id
+join rooms r on rb.room_id = r.room_id
+join branches b on rb.branch_id = b.branch_id
+join users u on rb.created_by = u.user_id;
+
+-- 2. View สำหรับแสดงรายละเอียดค่าสาธารณูปโภค
+create view public.bill_utility_details as
+select 
+  bui.item_id,
+  bui.bill_id,
+  rb.bill_number,
+  
+  -- ข้อมูลประเภทสาธารณูปโภค
+  ut.type_name as utility_name,
+  ut.unit_name,
+  
+  -- ข้อมูลการใช้งาน
+  bui.previous_reading,
+  bui.current_reading,
+  bui.consumption,
+  
+  -- ข้อมูลอัตรา
+  bui.rate_per_unit,
+  bui.minimum_charge,
+  bui.fixed_charge,
+  bui.amount,
+  
+  -- ข้อมูลมิเตอร์
+  rm.meter_serial,
+  
+  rb.billing_period_start,
+  rb.billing_period_end
+  
+from bill_utility_items bui
+join rental_bills rb on bui.bill_id = rb.bill_id
+join utility_types ut on bui.utility_type_id = ut.utility_type_id
+left join room_meters rm on bui.meter_id = rm.meter_id;
+
+-- 3. View สำหรับสถิติการชำระเงิน
+create view public.payment_statistics as
+select 
+  b.branch_id,
+  b.branch_name,
+  date_trunc('month', rb.billing_period_start) as billing_month,
+  
+  count(rb.bill_id) as total_bills,
+  count(case when rb.bill_status = 'paid' then 1 end) as paid_bills,
+  count(case when rb.bill_status = 'overdue' then 1 end) as overdue_bills,
+  
+  sum(rb.total_amount) as total_billed,
+  sum(rb.paid_amount) as total_paid,
+  sum(rb.outstanding_amount) as total_outstanding,
+  
+  round(
+    (count(case when rb.bill_status = 'paid' then 1 end)::numeric / 
+     nullif(count(rb.bill_id), 0)) * 100, 2
+  ) as payment_rate_percent
+  
+from rental_bills rb
+join branches b on rb.branch_id = b.branch_id
+group by b.branch_id, b.branch_name, date_trunc('month', rb.billing_period_start);
+
+-- ====================================================================
+-- ข้อมูลเริ่มต้น (SEED DATA)
+-- ====================================================================
+
+-- เพิ่มประเภทค่าใช้จ่ายพื้นฐาน
+insert into utility_types (type_code, type_name, unit_name, is_metered, default_rate, display_order) values
+('ELECTRIC', 'ค่าไฟฟ้า', 'หน่วย', true, 8.00, 1),
+('WATER', 'ค่าน้ำ', 'หน่วย', true, 25.00, 2),
+('INTERNET', 'ค่าอินเทอร์เน็ต', 'เดือน', false, 300.00, 3),
+('CLEANING', 'ค่าทำความสะอาดส่วนกลาง', 'เดือน', false, 200.00, 4),
+('PARKING', 'ค่าจอดรถ', 'คัน', false, 500.00, 5),
+('GARBAGE', 'ค่าขยะ', 'เดือน', false, 100.00, 6),
+('SECURITY', 'ค่ารักษาความปลอดภัย', 'เดือน', false, 150.00, 7);
+
+-- ====================================================================
+-- INDEXES สำหรับ Performance
+-- ====================================================================
+
+create index idx_rental_bills_tenant_date on rental_bills (tenant_id, billing_period_start);
+create index idx_rental_bills_branch_date on rental_bills (branch_id, billing_period_start);
+create index idx_rental_bills_status on rental_bills (bill_status);
+create index idx_rental_bills_due_date on rental_bills (due_date) where bill_status != 'paid';
+create index idx_meter_readings_meter_date on meter_readings (meter_id, reading_date desc);
+create index idx_payment_history_bill_date on payment_history (bill_id, payment_date desc);
+
+-- ====================================================================
+-- FUNCTIONS และ TRIGGERS สำหรับการอัปเดตอัตโนมัติ
+-- ====================================================================
+
+-- Function สำหรับคำนวณ subtotal, total_amount และ outstanding_amount
+create or replace function calculate_bill_amounts()
+returns trigger as $$
+begin
+  -- คำนวณ subtotal และ total_amount
+  NEW.subtotal := NEW.room_rent + NEW.total_utilities + NEW.other_charges;
+  NEW.total_amount := NEW.subtotal - NEW.discount + NEW.tax_amount + NEW.late_fee;
+  NEW.outstanding_amount := NEW.total_amount - NEW.paid_amount;
+  
+  -- อัปเดตสถานะบิลตามยอดที่ค้างชำระ
+  if NEW.outstanding_amount <= 0 then
+    NEW.bill_status := 'paid';
+  elsif NEW.paid_amount > 0 then
+    NEW.bill_status := 'partial';
+  elsif NEW.due_date < current_date and NEW.outstanding_amount > 0 then
+    NEW.bill_status := 'overdue';
+  end if;
+  
+  return NEW;
+end;
+$$ language plpgsql;
+
+-- Trigger สำหรับคำนวณยอดรวมเมื่อมีการเปลี่ยนแปลงข้อมูลบิล
+create trigger trigger_calculate_bill_amounts
+  before insert or update on rental_bills
+  for each row execute function calculate_bill_amounts();
+
+-- Function สำหรับอัปเดตค่าสาธารณูปโภค
+create or replace function update_bill_utilities()
+returns trigger as $$
+begin
+  update rental_bills 
+  set 
+    total_utilities = (
+      select coalesce(sum(amount), 0)
+      from bill_utility_items 
+      where bill_id = coalesce(NEW.bill_id, OLD.bill_id)
+    ),
+    updated_at = now()
+  where bill_id = coalesce(NEW.bill_id, OLD.bill_id);
+  
+  return coalesce(NEW, OLD);
+end;
+$$ language plpgsql;
+
+-- Trigger สำหรับอัปเดต total_utilities เมื่อมีการเปลี่ยนแปลง utility items
+create trigger trigger_update_bill_utilities
+  after insert or update or delete on bill_utility_items
+  for each row execute function update_bill_utilities();
+
+-- Function สำหรับอัปเดตค่าใช้จ่ายอื่นๆ
+create or replace function update_bill_other_charges()
+returns trigger as $$
+begin
+  update rental_bills 
+  set 
+    other_charges = (
+      select coalesce(sum(amount), 0)
+      from bill_other_items 
+      where bill_id = coalesce(NEW.bill_id, OLD.bill_id)
+    ),
+    updated_at = now()
+  where bill_id = coalesce(NEW.bill_id, OLD.bill_id);
+  
+  return coalesce(NEW, OLD);
+end;
+$$ language plpgsql;
+
+-- Trigger สำหรับอัปเดต other_charges เมื่อมีการเปลี่ยนแปลง other items
+create trigger trigger_update_bill_other_charges
+  after insert or update or delete on bill_other_items
+  for each row execute function update_bill_other_charges();
+
+-- Function สำหรับอัปเดต paid_amount และสถานะบิล
+create or replace function update_bill_paid_amount()
+returns trigger as $$
+begin
+  update rental_bills 
+  set 
+    paid_amount = (
+      select coalesce(sum(payment_amount), 0)
+      from payment_history 
+      where bill_id = coalesce(NEW.bill_id, OLD.bill_id)
+    ),
+    updated_at = now()
+  where bill_id = coalesce(NEW.bill_id, OLD.bill_id);
+  
+  return coalesce(NEW, OLD);
+end;
+$$ language plpgsql;
+
+-- Trigger สำหรับอัปเดต paid_amount เมื่อมีการชำระเงิน
+create trigger trigger_update_paid_amount
+  after insert or update or delete on payment_history
+  for each row execute function update_bill_paid_amount();
