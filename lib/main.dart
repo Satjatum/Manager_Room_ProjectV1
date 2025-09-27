@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/splash_ui.dart';
-import 'services/auth_service.dart';
 import 'config/superbase_config.dart';
 
 void main() async {
@@ -10,7 +9,7 @@ void main() async {
   await SupabaseConfig.initialize();
 
   // Initialize SharedPreferences
-  await AuthService.initializeSession();
+  // await AuthService.initializeSession();
 
   runApp(const ManagerRoomProject());
 }

@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/services/auth_service.dart';
-import 'package:manager_room_project/views/admin/admindash_ui.dart';
-import 'package:manager_room_project/views/superadmin/superadmindash_ui.dart';
-import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
-import 'package:manager_room_project/views/user/userdash_ui.dart';
-import 'package:manager_room_project/widget/appcolors.dart';
-import 'package:manager_room_project/widget/hashpass.dart';
-import '../model/user_model.dart';
+import '../services/auth_service.dart';
+import '../middleware/auth_middleware.dart';
+import '../models/user_models.dart';
+import 'superadmin/superadmindash_ui.dart';
 
 class LoginUi extends StatefulWidget {
   const LoginUi({Key? key}) : super(key: key);
@@ -19,18 +15,45 @@ class _LoginUiState extends State<LoginUi> {
   final _formKey = GlobalKey<FormState>();
   final _emailOrUsernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final authService = AuthService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
-  // bool _rememberMe = true;
+  bool _isCheckingSession = true;
 
   @override
   void initState() {
     super.initState();
+    _initializeAndCheckSession();
   }
 
-  _login() async {
+  Future<void> _initializeAndCheckSession() async {
+    try {
+      await AuthService.initializeSession();
+      final isAuthenticated = await AuthMiddleware.isAuthenticated();
+
+      if (mounted) {
+        setState(() {
+          _isCheckingSession = false;
+        });
+
+        if (isAuthenticated) {
+          final user = await AuthMiddleware.getCurrentUser();
+          if (user != null && user.isActive) {
+            _navigateToDashboard(user);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error during initialization: $e');
+      if (mounted) {
+        setState(() {
+          _isCheckingSession = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
@@ -50,36 +73,33 @@ class _LoginUiState extends State<LoginUi> {
           if (result['success']) {
             final UserModel user = result['user'];
 
+            // Show enhanced welcome message with user info
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Row(
+                content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: 8),
                     Text('ยินดีต้อนรับ, ${user.displayName}!'),
+                    Text('สถานะ: ${user.roleDisplayName}',
+                        style: const TextStyle(fontSize: 12)),
+                    if (user.detailedPermissions.isNotEmpty)
+                      Text(
+                          'สิทธิ์: ${user.detailedPermissionStrings.take(2).join(", ")}${user.detailedPermissionStrings.length > 2 ? "..." : ""}',
+                          style: const TextStyle(fontSize: 11)),
                   ],
                 ),
                 backgroundColor: Colors.green,
-                duration: Duration(seconds: 3),
+                duration: const Duration(seconds: 4),
               ),
             );
 
-            // Navigate to appropriate dashboard
-            _navigateToDashboard(user);
+            _emailOrUsernameController.clear();
+            _passwordController.clear();
+
+            await _navigateToDashboard(user);
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.error, color: Colors.white),
-                    SizedBox(width: 8),
-                    Expanded(child: Text(result['message'])),
-                  ],
-                ),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 4),
-              ),
-            );
+            _showErrorMessage(result['message']);
           }
         }
       } catch (e) {
@@ -87,97 +107,154 @@ class _LoginUiState extends State<LoginUi> {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.error, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text('เกิดข้อผิดพลาด: ${e.toString()}')),
-                ],
-              ),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 4),
-            ),
-          );
+          _showErrorMessage('เกิดข้อผิดพลาด: ${e.toString()}');
         }
       }
     }
   }
 
-  _navigateToDashboard(UserModel user) {
-    Widget targetPage;
-
-    switch (user.userRole) {
-      case UserRole.superAdmin:
-        targetPage = SuperadmindashUi();
-        break;
-      case UserRole.admin:
-        targetPage = AdmindashUi();
-        break;
-      case UserRole.user:
-        targetPage = UserdashUi();
-        break;
-      case UserRole.tenant:
-        targetPage = TenantdashUi(); // หน้าสำหรับผู้เช่า
-        break;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => targetPage),
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
     );
+  }
+
+  Future<void> _navigateToDashboard(UserModel user) async {
+    try {
+      // For now, all roles go to SuperAdmin dashboard (replace with role-specific dashboards later)
+      const Widget targetPage = SuperadmindashUi();
+
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => AuthWrapper(
+            requiredPermissions: [DetailedPermission.viewOwnData],
+            child: targetPage,
+            fallback: const LoginUi(),
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 0.1),
+                  end: Offset.zero,
+                ).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 600),
+        ),
+      );
+    } catch (e) {
+      print('Navigation error: $e');
+      _showErrorMessage('เกิดข้อผิดพลาดในการนำทาง');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.only(left: 20.0, right: 20.0),
+    if (_isCheckingSession) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              buildLoginForm(),
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('กำลังตรวจสอบสิทธิ์การเข้าถึง...',
+                  style: TextStyle(fontSize: 16)),
             ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo with enhanced styling
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xff10B981), Color(0xff059669)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xff10B981).withOpacity(0.3),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.home_work_outlined,
+                        size: 50, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildLoginForm(),
+                const SizedBox(height: 30),
+                _buildSecurityInfo(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget buildLoginForm() {
+  Widget _buildLoginForm() {
     return Form(
       key: _formKey,
       child: Column(
         children: [
-          Text(
-            'ระบบจัดการห้องเช่า',
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            'เข้าสู่ระบบเพื่อดำเนินการต่อ',
-            style: TextStyle(
-              fontSize: 20,
-              color: Colors.grey[600],
-            ),
-          ),
-          SizedBox(height: 20),
+          const Text('ระบบจัดการห้องเช่า',
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+          Text('เข้าสู่ระบบเพื่อดำเนินการต่อ',
+              style: TextStyle(fontSize: 20, color: Colors.grey[600])),
+          const SizedBox(height: 30),
 
-          // Email or Username Field
+          // Email/Username Field with enhanced styling
           TextFormField(
             controller: _emailOrUsernameController,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'อีเมลหรือชื่อผู้ใช้',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+              prefixIcon: const Icon(Icons.person),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Color(0xff10B981), width: 2),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -187,28 +264,39 @@ class _LoginUiState extends State<LoginUi> {
             },
           ),
 
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
-          // Password Field
+          // Password Field with enhanced styling
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _login(),
             decoration: InputDecoration(
               labelText: 'รหัสผ่าน',
-              prefixIcon: Icon(Icons.lock),
+              prefixIcon: const Icon(Icons.lock),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                ),
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off),
                 onPressed: () {
                   setState(() {
                     _obscurePassword = !_obscurePassword;
                   });
                 },
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Color(0xff10B981), width: 2),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -218,70 +306,57 @@ class _LoginUiState extends State<LoginUi> {
             },
           ),
 
-          SizedBox(height: 20),
+          const SizedBox(height: 30),
 
-          // Login Button
+          // Enhanced Login Button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 55,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _login,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: const Color(0xff10B981),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                elevation: 2,
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 3,
+                shadowColor: const Color(0xff10B981).withOpacity(0.3),
               ),
               child: _isLoading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
+                          color: Colors.white, strokeWidth: 2),
                     )
-                  : const Text(
-                      'เข้าสู่ระบบ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.login, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'เข้าสู่ระบบ',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      ],
                     ),
             ),
           ),
-          SizedBox(height: 20),
-          const HashGeneratorCard(),
-          SizedBox(height: 20),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'ยังไม่มีบัญชี?',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 16,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  // สามารถเพิ่มหน้าสำหรับติดต่อ admin ได้
-                },
-                child: Text(
-                  'ติดต่อผู้ดูแลระบบ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSecurityInfo() {
+    return Column(
+      children: [
+        Text(
+          'Build: ${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}',
+          style: TextStyle(color: Colors.grey[400], fontSize: 10),
+        ),
+      ],
     );
   }
 

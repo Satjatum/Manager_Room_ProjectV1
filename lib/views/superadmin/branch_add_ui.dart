@@ -1,0 +1,1334 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import '../../services/branch_service.dart';
+import '../../services/user_service.dart';
+import '../../services/image_service.dart';
+import '../../models/user_models.dart';
+import '../../middleware/auth_middleware.dart';
+import '../../widgets/colors.dart';
+
+class BranchAddPage extends StatefulWidget {
+  const BranchAddPage({Key? key}) : super(key: key);
+
+  @override
+  State<BranchAddPage> createState() => _BranchAddPageState();
+}
+
+class _BranchAddPageState extends State<BranchAddPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _branchCodeController = TextEditingController();
+  final _branchNameController = TextEditingController();
+  final _branchAddressController = TextEditingController();
+  final _branchDescController = TextEditingController();
+
+  String? _selectedOwnerId;
+  String? _branchImageUrl;
+  File? _selectedImage;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
+  bool _isActive = true;
+  bool _isLoading = false;
+  bool _isLoadingOwners = false;
+  bool _isCheckingAuth = true;
+
+  List<Map<String, dynamic>> _adminUsers = [];
+  UserModel? _currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePageData();
+  }
+
+  @override
+  void dispose() {
+    _branchCodeController.dispose();
+    _branchNameController.dispose();
+    _branchAddressController.dispose();
+    _branchDescController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializePageData() async {
+    await _loadCurrentUser();
+    if (_currentUser != null) {
+      await _loadAdminUsers();
+    }
+    if (mounted) {
+      setState(() {
+        _isCheckingAuth = false;
+      });
+    }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await AuthMiddleware.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+        });
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
+      if (mounted) {
+        setState(() {
+          _currentUser = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadAdminUsers() async {
+    if (_currentUser == null) return;
+
+    setState(() => _isLoadingOwners = true);
+
+    try {
+      final users = await UserService.getAdminUsers();
+      if (mounted) {
+        setState(() {
+          _adminUsers = users;
+          _isLoadingOwners = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingOwners = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่สามารถโหลดรายการผู้ดูแลได้: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      if (kIsWeb) {
+        await _pickImageForWeb();
+      } else {
+        await _pickImageForMobile();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickImageForWeb() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      final name = image.name;
+
+      if (await _validateImageBytesForWeb(bytes, name)) {
+        setState(() {
+          _selectedImageBytes = bytes;
+          _selectedImageName = name;
+          _selectedImage = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _pickImageForMobile() async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'เลือกรูปภาพสาขา',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => Navigator.pop(context, ImageSource.camera),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.camera_alt,
+                                size: 40,
+                                color: AppTheme.primary,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'ถ่ายรูป',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () =>
+                            Navigator.pop(context, ImageSource.gallery),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.photo_library,
+                                size: 40,
+                                color: AppTheme.primary,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'แกลเลอรี่',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'ยกเลิก',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      final file = File(image.path);
+
+      if (await _validateImageFile(file)) {
+        setState(() {
+          _selectedImage = file;
+          _selectedImageBytes = null;
+          _selectedImageName = null;
+        });
+      }
+    }
+  }
+
+  Future<bool> _validateImageBytesForWeb(
+      Uint8List bytes, String fileName) async {
+    try {
+      if (bytes.length > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      if (bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ไฟล์เสียหายหรือมีขนาด 0 bytes'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      final extension = fileName.split('.').last.toLowerCase();
+      const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+      if (!allowedExtensions.contains(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่สามารถตรวจสอบไฟล์ได้: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _validateImageFile(File file) async {
+    try {
+      if (!await file.exists()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ไฟล์ไม่พบหรือถูกลบ'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      final fileSize = await file.length();
+      if (fileSize > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      if (fileSize == 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ไฟล์เสียหายหรือมีขนาด 0 bytes'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      final extension = file.path.split('.').last.toLowerCase();
+      const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+      if (!allowedExtensions.contains(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่สามารถตรวจสอบไฟล์ได้: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _removeImage() async {
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+      _selectedImageName = null;
+      _branchImageUrl = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('ลบรูปภาพแล้ว'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _saveBranch() async {
+    if (_currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณาเข้าสู่ระบบก่อนเพิ่มสาขา'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (_currentUser!.userRole != UserRole.superAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('คุณไม่มีสิทธิ์ในการเพิ่มสาขา'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      String? imageUrl;
+      if (_selectedImage != null || _selectedImageBytes != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppTheme.primary),
+                const SizedBox(height: 16),
+                const Text('กำลังอัปโหลดรูปภาพ...'),
+              ],
+            ),
+          ),
+        );
+
+        dynamic uploadResult;
+
+        if (kIsWeb && _selectedImageBytes != null) {
+          uploadResult = await ImageService.uploadImageFromBytes(
+            _selectedImageBytes!,
+            _selectedImageName ?? 'branch_image.jpg',
+            'branch-images',
+            folder: 'branches',
+          );
+        } else if (!kIsWeb && _selectedImage != null) {
+          uploadResult = await ImageService.uploadImage(
+            _selectedImage!,
+            'branch-images',
+            folder: 'branches',
+          );
+        }
+
+        if (mounted) Navigator.of(context).pop();
+
+        if (uploadResult != null && uploadResult['success']) {
+          imageUrl = uploadResult['url'];
+        } else {
+          throw Exception(
+              uploadResult?['message'] ?? 'ไม่สามารถอัปโหลดรูปภาพได้');
+        }
+      }
+
+      final branchData = {
+        'branch_code': _branchCodeController.text.trim(),
+        'branch_name': _branchNameController.text.trim(),
+        'branch_address': _branchAddressController.text.trim().isEmpty
+            ? null
+            : _branchAddressController.text.trim(),
+        'branch_desc': _branchDescController.text.trim().isEmpty
+            ? null
+            : _branchDescController.text.trim(),
+        'owner_id': _selectedOwnerId,
+        'branch_image': imageUrl,
+        'is_active': _isActive,
+      };
+
+      final result = await BranchService.createBranch(branchData);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        if (result['success']) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(result['message'])),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+
+          Navigator.of(context).pop(true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(result['message'])),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isCheckingAuth) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('เพิ่มสาขาใหม่'),
+          backgroundColor: AppTheme.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: AppTheme.primary),
+              const SizedBox(height: 16),
+              const Text('กำลังตรวจสอบสิทธิ์...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_currentUser == null || _currentUser!.userRole != UserRole.superAdmin) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('เพิ่มสาขาใหม่'),
+          backgroundColor: AppTheme.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.lock,
+                size: 80,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _currentUser == null
+                    ? 'กรุณาเข้าสู่ระบบ'
+                    : 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _currentUser == null
+                    ? 'คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถเพิ่มสาขาได้'
+                    : 'เฉพาะ SuperAdmin เท่านั้นที่สามารถเพิ่มสาขาได้',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('กลับ'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('เพิ่มสาขาใหม่'),
+        backgroundColor: AppTheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: _isLoading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppTheme.primary),
+                  const SizedBox(height: 16),
+                  const Text('กำลังบันทึกข้อมูล...'),
+                ],
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildImageSection(),
+                    const SizedBox(height: 24),
+                    _buildBasicInfoSection(),
+                    const SizedBox(height: 24),
+                    _buildOwnerSection(),
+                    const SizedBox(height: 24),
+                    _buildDescriptionSection(),
+                    const SizedBox(height: 24),
+                    _buildStatusSection(),
+                    const SizedBox(height: 32),
+                    _buildSaveButton(),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildImageSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.image, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'รูปภาพสาขา',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (kIsWeb)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'WEB',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                if (_hasSelectedImage())
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'รูปพร้อมแล้ว',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_hasSelectedImage()) ...[
+              Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _buildImagePreview(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_selectedImageName != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.insert_drive_file,
+                          size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedImageName!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        _getImageSizeText(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.swap_horiz),
+                      label: const Text('เปลี่ยนรูปภาพ'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        side: BorderSide(color: AppTheme.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: _removeImage,
+                      icon: const Icon(Icons.delete),
+                      label: const Text('ลบรูปภาพ'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              InkWell(
+                onTap: _pickImage,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                      style: BorderStyle.solid,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade50,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        kIsWeb ? Icons.upload_file : Icons.add_photo_alternate,
+                        size: 48,
+                        color: AppTheme.primary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        kIsWeb ? 'เลือกไฟล์รูปภาพ' : 'เลือกรูปภาพสาขา',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        kIsWeb
+                            ? 'แตะเพื่อเลือกไฟล์จากคอมพิวเตอร์'
+                            : 'แตะเพื่อเลือกจากแกลเลอรี่หรือถ่ายรูปใหม่',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'รองรับ JPG, PNG, WebP (สูงสุด 5MB)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.blue.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _hasSelectedImage() {
+    return _selectedImage != null || _selectedImageBytes != null;
+  }
+
+  Widget _buildImagePreview() {
+    if (kIsWeb && _selectedImageBytes != null) {
+      return Image.memory(
+        _selectedImageBytes!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else if (!kIsWeb && _selectedImage != null) {
+      return Image.file(
+        _selectedImage!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+    return Container(
+      color: Colors.grey.shade200,
+      child: Center(
+        child: Icon(
+          Icons.image_not_supported,
+          size: 48,
+          color: Colors.grey.shade400,
+        ),
+      ),
+    );
+  }
+
+  String _getImageSizeText() {
+    if (_selectedImageBytes != null) {
+      final sizeInMB = _selectedImageBytes!.length / (1024 * 1024);
+      return '${sizeInMB.toStringAsFixed(1)} MB';
+    }
+    return '';
+  }
+
+  Widget _buildBasicInfoSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.business, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'ข้อมูลพื้นฐาน',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _branchCodeController,
+              decoration: InputDecoration(
+                labelText: 'รหัสสาขา *',
+                prefixIcon: const Icon(Icons.qr_code),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'กรุณากรอกรหัสสาขา';
+                }
+                if (value.trim().length < 3) {
+                  return 'รหัสสาขาต้องมีอย่างน้อย 3 ตัวอักษร';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _branchNameController,
+              decoration: InputDecoration(
+                labelText: 'ชื่อสาขา *',
+                prefixIcon: const Icon(Icons.store),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'กรุณากรอกชื่อสาขา';
+                }
+                if (value.trim().length < 2) {
+                  return 'ชื่อสาขาต้องมีอย่างน้อย 2 ตัวอักษร';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _branchAddressController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'ที่อยู่สาขา',
+                prefixIcon: const Icon(Icons.location_on),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnerSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.person_outline, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'เจ้าของสาขา',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'บังคับ',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isLoadingOwners)
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppTheme.primary),
+                ),
+              )
+            else
+              DropdownButtonFormField<String>(
+                value: _selectedOwnerId,
+                decoration: InputDecoration(
+                  labelText: 'เลือกเจ้าของสาขา *',
+                  hintText: 'เลือกผู้ดูแลเป็นเจ้าของสาขา (บังคับ)',
+                  prefixIcon: const Icon(Icons.admin_panel_settings),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                isExpanded: true,
+                isDense: false, // ให้มีพื้นที่มากขึ้น
+                menuMaxHeight: 300, // จำกัดความสูงของ dropdown menu
+                items: _adminUsers.map((user) {
+                  return DropdownMenuItem<String>(
+                    value: user['user_id'],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            user['user_name'] ?? 'ไม่มีชื่อ',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '${user['role'] == 'superadmin' ? 'SuperAdmin' : 'Admin'} • ${user['user_email'] ?? 'ไม่มีอีเมล'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedOwnerId = value;
+                  });
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'กรุณาเลือกเจ้าของสาขา';
+                  }
+                  return null;
+                },
+              ),
+            if (_adminUsers.isEmpty && !_isLoadingOwners)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ไม่พบรายการผู้ดูแล',
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            'ต้องมี Admin หรือ SuperAdmin ในระบบก่อนจึงจะสร้างสาขาได้',
+                            style: TextStyle(
+                              color: Colors.red.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescriptionSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.description, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'คำอธิบายเพิ่มเติม',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _branchDescController,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'รายละเอียดสาขา',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.settings, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'การตั้งค่า',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text('เปิดใช้งานสาขา'),
+              subtitle: Text(
+                _isActive
+                    ? 'สาขาจะปรากฏในระบบและสามารถใช้งานได้'
+                    : 'สาขาจะถูกปิดการใช้งาน',
+                style: TextStyle(
+                  color: _isActive
+                      ? Colors.green.shade600
+                      : Colors.orange.shade600,
+                ),
+              ),
+              value: _isActive,
+              onChanged: (value) {
+                setState(() {
+                  _isActive = value;
+                });
+              },
+              activeColor: AppTheme.primary,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    final bool canSave =
+        !_isLoading && _adminUsers.isNotEmpty && !_isLoadingOwners;
+
+    return Column(
+      children: [
+        if (!canSave && _adminUsers.isEmpty && !_isLoadingOwners)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.amber.shade600, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ไม่สามารถบันทึกได้ เนื่องจากไม่พบผู้ดูแลในระบบ',
+                    style: TextStyle(
+                      color: Colors.amber.shade700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: canSave ? _saveBranch : null,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.save, color: Colors.white),
+            label: Text(
+              _isLoading ? 'กำลังบันทึก...' : 'บันทึกสาขา',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: canSave ? AppTheme.primary : Colors.grey,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: canSave ? 2 : 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
