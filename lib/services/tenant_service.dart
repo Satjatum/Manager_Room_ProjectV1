@@ -5,7 +5,6 @@ import '../models/user_models.dart';
 class TenantService {
   static final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Get all tenants with pagination and filtering
   static Future<List<Map<String, dynamic>>> getAllTenants({
     int offset = 0,
     int limit = 100,
@@ -16,28 +15,42 @@ class TenantService {
     bool ascending = false,
   }) async {
     try {
-      // Build query - tenants don't have direct branch relationship
-      // but we can filter by contracts if needed
-      var query = _supabase.from('tenants').select('*');
+      var query = _supabase.from('tenants').select('''
+      *,
+      branches(branch_id, branch_name, branch_code)
+    ''');
 
-      // Add filters
       if (searchQuery != null && searchQuery.isNotEmpty) {
         query = query.or('tenant_fullname.ilike.%$searchQuery%,'
-            'tenant_code.ilike.%$searchQuery%,'
             'tenant_idcard.ilike.%$searchQuery%,'
             'tenant_phone.ilike.%$searchQuery%');
+      }
+
+      // กรองตาม branch_id
+      if (branchId != null && branchId.isNotEmpty) {
+        if (branchId == 'null') {
+          // แสดงเฉพาะผู้เช่าที่ไม่มีสาขา
+          query = query.isFilter('branch_id', null);
+        } else {
+          query = query.eq('branch_id', branchId);
+        }
       }
 
       if (isActive != null) {
         query = query.eq('is_active', isActive);
       }
 
-      // Add ordering and pagination
       final result = await query
           .order(orderBy, ascending: ascending)
           .range(offset, offset + limit - 1);
 
-      return List<Map<String, dynamic>>.from(result);
+      return List<Map<String, dynamic>>.from(result).map((tenant) {
+        return {
+          ...tenant,
+          'branch_name': tenant['branches']?['branch_name'] ?? 'ไม่ระบุสาขา',
+          'branch_code': tenant['branches']?['branch_code'],
+        };
+      }).toList();
     } catch (e) {
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้เช่า: $e');
     }
@@ -116,11 +129,12 @@ class TenantService {
       }
 
       // Validate required fields
-      if (tenantData['tenant_code'] == null ||
-          tenantData['tenant_code'].toString().trim().isEmpty) {
+
+      if (tenantData['branch_id'] == null ||
+          tenantData['branch_id'].toString().trim().isEmpty) {
         return {
           'success': false,
-          'message': 'กรุณากรอกรหัสผู้เช่า',
+          'message': 'กรุณาเลือกสาขา',
         };
       }
 
@@ -148,20 +162,6 @@ class TenantService {
         };
       }
 
-      // Check for duplicate tenant code
-      final existingCode = await _supabase
-          .from('tenants')
-          .select('tenant_id')
-          .eq('tenant_code', tenantData['tenant_code'].toString().trim())
-          .maybeSingle();
-
-      if (existingCode != null) {
-        return {
-          'success': false,
-          'message': 'รหัสผู้เช่านี้มีอยู่แล้วในระบบ',
-        };
-      }
-
       // Check for duplicate ID card
       final existingIdCard = await _supabase
           .from('tenants')
@@ -178,7 +178,7 @@ class TenantService {
 
       // Prepare data for insertion
       final insertData = {
-        'tenant_code': tenantData['tenant_code'].toString().trim(),
+        'branch_id': tenantData['branch_id'], // เพิ่มบรรทัดนี้
         'tenant_idcard': tenantData['tenant_idcard'].toString().trim(),
         'tenant_fullname': tenantData['tenant_fullname'].toString().trim(),
         'tenant_phone': tenantData['tenant_phone'].toString().trim(),
@@ -221,9 +221,7 @@ class TenantService {
       String message = 'เกิดข้อผิดพลาด: ${e.message}';
 
       if (e.code == '23505') {
-        if (e.message.contains('tenant_code')) {
-          message = 'รหัสผู้เช่านี้มีอยู่แล้วในระบบ';
-        } else if (e.message.contains('tenant_idcard')) {
+        if (e.message.contains('tenant_idcard')) {
           message = 'เลขบัตรประชาชนนี้มีอยู่แล้วในระบบ';
         }
       } else if (e.code == '23503') {
@@ -269,30 +267,6 @@ class TenantService {
         };
       }
 
-      // Validate required fields
-      if (tenantData['tenant_code'] == null ||
-          tenantData['tenant_code'].toString().trim().isEmpty) {
-        return {
-          'success': false,
-          'message': 'กรุณากรอกรหัสผู้เช่า',
-        };
-      }
-
-      // Check for duplicate tenant code (exclude current tenant)
-      final existingCode = await _supabase
-          .from('tenants')
-          .select('tenant_id')
-          .eq('tenant_code', tenantData['tenant_code'].toString().trim())
-          .neq('tenant_id', tenantId)
-          .maybeSingle();
-
-      if (existingCode != null) {
-        return {
-          'success': false,
-          'message': 'รหัสผู้เช่านี้มีอยู่แล้วในระบบ',
-        };
-      }
-
       // Check for duplicate ID card (exclude current tenant)
       if (tenantData['tenant_idcard'] != null) {
         final existingIdCard = await _supabase
@@ -312,7 +286,7 @@ class TenantService {
 
       // Prepare data for update
       final updateData = {
-        'tenant_code': tenantData['tenant_code'].toString().trim(),
+        'branch_id': tenantData['branch_id'],
         'tenant_idcard': tenantData['tenant_idcard']?.toString().trim(),
         'tenant_fullname': tenantData['tenant_fullname']?.toString().trim(),
         'tenant_phone': tenantData['tenant_phone']?.toString().trim(),
@@ -340,9 +314,7 @@ class TenantService {
       String message = 'เกิดข้อผิดพลาด: ${e.message}';
 
       if (e.code == '23505') {
-        if (e.message.contains('tenant_code')) {
-          message = 'รหัสผู้เช่านี้มีอยู่แล้วในระบบ';
-        } else if (e.message.contains('tenant_idcard')) {
+        if (e.message.contains('tenant_idcard')) {
           message = 'เลขบัตรประชาชนนี้มีอยู่แล้วในระบบ';
         }
       } else if (e.code == 'PGRST116') {
@@ -564,7 +536,6 @@ class TenantService {
           .from('tenants')
           .select('*')
           .or('tenant_fullname.ilike.%$searchQuery%,'
-              'tenant_code.ilike.%$searchQuery%,'
               'tenant_idcard.ilike.%$searchQuery%,'
               'tenant_phone.ilike.%$searchQuery%')
           .eq('is_active', true)
@@ -656,7 +627,7 @@ class TenantService {
 
       final result = await _supabase
           .from('tenants')
-          .select('tenant_id, tenant_code, tenant_fullname, tenant_phone')
+          .select('tenant_id, tenant_fullname, tenant_phone')
           .eq('is_active', true)
           .order('tenant_fullname');
 

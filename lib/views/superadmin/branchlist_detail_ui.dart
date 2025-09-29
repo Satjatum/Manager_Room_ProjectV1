@@ -669,41 +669,6 @@ class _BranchListDetailState extends State<BranchListDetail>
           ),
           SizedBox(height: 12),
 
-          // ✨ เพิ่มผู้เช่าใหม่ในสาขา (ใหม่!)
-          _buildManageCard(
-            icon: Icons.person_add,
-            title: 'เพิ่มผู้เช่าใหม่',
-            subtitle: 'เพิ่มผู้เช่าใหม่เข้าสาขานี้',
-            color: Colors.purple,
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TenantListUI(
-                    branchId: widget.branchId,
-                    branchName: _branchData!['branch_name'] ?? '',
-                  ),
-                ),
-              );
-              if (result == true) {
-                await _loadBranchDetails();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text('เพิ่มผู้เช่าสำเร็จ'),
-                      ],
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-          ),
-          SizedBox(height: 12),
-
           if (_canManage) ...[
             // แก้ไขข้อมูลสาขา
             _buildManageCard(

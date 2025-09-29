@@ -15,8 +15,8 @@ import '../../widgets/colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TenantAddUI extends StatefulWidget {
-  final String? branchId; // รับ branchId จากหน้าก่อน
-  final String? branchName; // รับชื่อสาขาเพื่อแสดง
+  final String? branchId;
+  final String? branchName;
 
   const TenantAddUI({
     Key? key,
@@ -33,7 +33,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // Tenant form controllers
-  final _tenantCodeController = TextEditingController();
   final _tenantIdCardController = TextEditingController();
   final _tenantFullNameController = TextEditingController();
   final _tenantPhoneController = TextEditingController();
@@ -61,6 +60,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
   bool _isLoading = false;
   bool _isLoadingData = false;
   bool _isCheckingAuth = true;
+  bool _showPassword = false;
 
   List<Map<String, dynamic>> _branches = [];
   List<Map<String, dynamic>> _availableRooms = [];
@@ -74,10 +74,8 @@ class _TenantAddUIState extends State<TenantAddUI> {
   @override
   void initState() {
     super.initState();
-    _generateTenantCode();
     _generateContractNumber();
 
-    // ตั้งค่า branchId ถ้ามีส่งมา
     if (widget.branchId != null) {
       _selectedBranchId = widget.branchId;
     }
@@ -87,7 +85,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
 
   @override
   void dispose() {
-    _tenantCodeController.dispose();
     _tenantIdCardController.dispose();
     _tenantFullNameController.dispose();
     _tenantPhoneController.dispose();
@@ -99,20 +96,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
     _contractDepositController.dispose();
     _contractNotesController.dispose();
     super.dispose();
-  }
-
-  void _generateTenantCode() {
-    final now = DateTime.now();
-    final random = Random();
-    final randomNum = random.nextInt(999).toString().padLeft(3, '0');
-    final code =
-        'T${now.year}${now.month.toString().padLeft(2, '0')}$randomNum';
-    _tenantCodeController.text = code;
-
-    // ตั้งค่ารหัสผู้เช่าเป็นชื่อผู้ใช้ default
-    if (_createUserAccount && _userNameController.text.isEmpty) {
-      _userNameController.text = code;
-    }
   }
 
   void _generateContractNumber() {
@@ -128,7 +111,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
     if (_currentUser != null) {
       await _loadDropdownData();
 
-      // โหลดห้องว่างถ้ามี branchId ส่งมา
       if (widget.branchId != null) {
         await _loadAvailableRooms(widget.branchId!);
       }
@@ -149,7 +131,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
         });
       }
     } catch (e) {
-      print('Error loading current user: $e');
+      debugPrint('Error loading current user: $e');
       if (mounted) {
         setState(() {
           _currentUser = null;
@@ -164,6 +146,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
     setState(() => _isLoadingData = true);
 
     try {
+      // โหลดสาขา
       final branches = await BranchService.getBranchesByUser();
 
       if (mounted) {
@@ -171,16 +154,16 @@ class _TenantAddUIState extends State<TenantAddUI> {
           _branches = branches;
           _isLoadingData = false;
         });
+
+        // ถ้ามี branchId ที่ส่งมาจาก widget ให้โหลดห้องทันที
+        if (_selectedBranchId != null) {
+          await _loadAvailableRooms(_selectedBranchId!);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingData = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('ไม่สามารถโหลดข้อมูลได้: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _showErrorSnackBar('ไม่สามารถโหลดข้อมูลได้: $e');
       }
     }
   }
@@ -201,13 +184,22 @@ class _TenantAddUIState extends State<TenantAddUI> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('ไม่สามารถโหลดข้อมูลห้องได้: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _showErrorSnackBar('ไม่สามารถโหลดข้อมูลห้องได้: $e');
       }
+    }
+  }
+
+  Future<void> _loadBranches() async {
+    try {
+      final branches = await TenantService.getBranchesForTenantFilter();
+      setState(() {
+        _branches = branches;
+        if (widget.branchId != null) {
+          _selectedBranchId = widget.branchId;
+        }
+      });
+    } catch (e) {
+      print('Error loading branches: $e');
     }
   }
 
@@ -220,12 +212,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('เกิดข้อผิดพลาดในการเลือกรูปภาพ: $e');
       }
     }
   }
@@ -285,63 +272,18 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: () => Navigator.pop(context, ImageSource.camera),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.camera_alt,
-                                size: 40,
-                                color: AppTheme.primary,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'ถ่ายรูป',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: _buildImageSourceOption(
+                        icon: Icons.camera_alt,
+                        label: 'ถ่ายรูป',
+                        source: ImageSource.camera,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: InkWell(
-                        onTap: () =>
-                            Navigator.pop(context, ImageSource.gallery),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.photo_library,
-                                size: 40,
-                                color: AppTheme.primary,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'แกลเลอรี่',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: _buildImageSourceOption(
+                        icon: Icons.photo_library,
+                        label: 'แกลเลอรี่',
+                        source: ImageSource.gallery,
                       ),
                     ),
                   ],
@@ -385,17 +327,41 @@ class _TenantAddUIState extends State<TenantAddUI> {
     }
   }
 
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required ImageSource source,
+  }) {
+    return InkWell(
+      onTap: () => Navigator.pop(context, source),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 40, color: AppTheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<bool> _validateImageBytesForWeb(
       Uint8List bytes, String fileName) async {
     try {
       if (bytes.length > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar(
+              'ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า');
         }
         return false;
       }
@@ -405,12 +371,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
 
       if (!allowedExtensions.contains(extension)) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น');
         }
         return false;
       }
@@ -430,12 +391,8 @@ class _TenantAddUIState extends State<TenantAddUI> {
       final fileSize = await file.length();
       if (fileSize > 5 * 1024 * 1024) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar(
+              'ขนาดไฟล์เกิน 5MB กรุณาเลือกไฟล์ที่มีขนาดเล็กกว่า');
         }
         return false;
       }
@@ -445,12 +402,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
 
       if (!allowedExtensions.contains(extension)) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar('รองรับเฉพาะไฟล์ JPG, JPEG, PNG, WebP เท่านั้น');
         }
         return false;
       }
@@ -505,14 +457,42 @@ class _TenantAddUIState extends State<TenantAddUI> {
     }
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _saveTenant() async {
     if (_currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('กรุณาเข้าสู่ระบบก่อนเพิ่มผู้เช่า'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('กรุณาเข้าสู่ระบบก่อนเพิ่มผู้เช่า');
       Navigator.of(context).pop();
       return;
     }
@@ -522,22 +502,18 @@ class _TenantAddUIState extends State<TenantAddUI> {
     }
 
     if (_selectedRoomId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('กรุณาเลือกห้องเช่า'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('กรุณาเลือกห้องเช่า');
       return;
     }
 
     if (_contractStartDate == null || _contractEndDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('กรุณาระบุวันที่เริ่มต้นและสิ้นสุดสัญญา'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('กรุณาระบุวันที่เริ่มต้นและสิ้นสุดสัญญา');
+      return;
+    }
+
+    // Validate contract dates
+    if (_contractEndDate!.isBefore(_contractStartDate!)) {
+      _showErrorSnackBar('วันที่สิ้นสุดสัญญาต้องมาหลังวันที่เริ่มต้น');
       return;
     }
 
@@ -569,20 +545,24 @@ class _TenantAddUIState extends State<TenantAddUI> {
           uploadResult = await ImageService.uploadImageFromBytes(
             _selectedImageBytes!,
             _selectedImageName ?? 'tenant_profile.jpg',
-            'tenant-profiles',
+            'tenant-images',
             folder: 'profiles',
           );
         } else if (!kIsWeb && _selectedImage != null) {
           uploadResult = await ImageService.uploadImage(
             _selectedImage!,
-            'tenant-profiles',
+            'tenant-images',
             folder: 'profiles',
           );
         }
 
         if (mounted) Navigator.of(context).pop();
+
         if (uploadResult != null && uploadResult['success']) {
           imageUrl = uploadResult['url'];
+        } else {
+          throw Exception(
+              uploadResult?['message'] ?? 'ไม่สามารถอัปโหลดรูปภาพได้');
         }
       }
 
@@ -605,13 +585,8 @@ class _TenantAddUIState extends State<TenantAddUI> {
         if (!userResult['success']) {
           if (mounted) {
             setState(() => _isLoading = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'ไม่สามารถสร้างบัญชีผู้ใช้ได้: ${userResult['message']}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            _showErrorSnackBar(
+                'ไม่สามารถสร้างบัญชีผู้ใช้ได้: ${userResult['message']}');
           }
           return;
         }
@@ -619,9 +594,9 @@ class _TenantAddUIState extends State<TenantAddUI> {
         userId = userResult['data']['user_id'];
       }
 
-      // Create tenant
+      // Create tenant - REMOVED tenant_code as it doesn't exist in schema
       final tenantData = {
-        'tenant_code': _tenantCodeController.text.trim(),
+        'branch_id': _selectedBranchId, // เพิ่มบรรทัดนี้
         'tenant_idcard': _tenantIdCardController.text.trim(),
         'tenant_fullname': _tenantFullNameController.text.trim(),
         'tenant_phone': _tenantPhoneController.text.trim(),
@@ -630,18 +605,14 @@ class _TenantAddUIState extends State<TenantAddUI> {
         'is_active': _isActive,
         'user_id': userId,
       };
+      ;
 
       final tenantResult = await TenantService.createTenant(tenantData);
 
       if (!tenantResult['success']) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tenantResult['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar(tenantResult['message']);
         }
         return;
       }
@@ -682,24 +653,9 @@ class _TenantAddUIState extends State<TenantAddUI> {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'สร้างผู้เช่าและสัญญาเช่าสำเร็จ'
-                    '${_createUserAccount ? ' พร้อมบัญชีผู้ใช้' : ''}',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
+        _showSuccessSnackBar(
+          'สร้างผู้เช่าและสัญญาเช่าสำเร็จ'
+          '${_createUserAccount ? ' พร้อมบัญชีผู้ใช้' : ''}',
         );
 
         Navigator.of(context).pop(true);
@@ -707,13 +663,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาด: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
       }
     }
   }
@@ -845,6 +795,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                     _buildStatusSection(),
                     const SizedBox(height: 32),
                     _buildSaveButton(),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -1001,55 +952,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
             ),
             const SizedBox(height: 16),
 
-            // รหัสผู้เช่า
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _tenantCodeController,
-                    decoration: InputDecoration(
-                      labelText: 'รหัสผู้เช่า *',
-                      prefixIcon: const Icon(Icons.tag),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                            color: Color(0xff10B981), width: 2),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                    ),
-                    onChanged: (value) {
-                      // อัพเดทชื่อผู้ใช้เมื่อเปลี่ยนรหัสผู้เช่า
-                      if (_createUserAccount) {
-                        _userNameController.text = value;
-                      }
-                    },
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'กรุณากรอกรหัสผู้เช่า';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _generateTenantCode,
-                  icon: Icon(Icons.refresh, color: AppTheme.primary),
-                  tooltip: 'สร้างรหัสใหม่',
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
             // เลขบัตรประชาชน
             TextFormField(
               controller: _tenantIdCardController,
@@ -1145,6 +1047,9 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 if (value == null || value.trim().isEmpty) {
                   return 'กรุณากรอกเบอร์โทรศัพท์';
                 }
+                if (value.length != 10) {
+                  return 'เบอร์โทรศัพท์ต้องมี 10 หลัก';
+                }
                 return null;
               },
             ),
@@ -1180,6 +1085,54 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 setState(() {
                   _selectedGender = value;
                 });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // เพิ่ม Dropdown สาขาที่นี่
+            DropdownButtonFormField<String>(
+              value: _selectedBranchId,
+              decoration: InputDecoration(
+                labelText: 'สาขา *',
+                prefixIcon: const Icon(Icons.business),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              items: _branches.map((branch) {
+                return DropdownMenuItem<String>(
+                  value: branch['branch_id'],
+                  child: Text(branch['branch_name'] ?? ''),
+                );
+              }).toList(),
+              onChanged: (value) async {
+                setState(() {
+                  _selectedBranchId = value;
+                  _selectedRoomId = null; // รีเซ็ตห้องที่เลือก
+                  _availableRooms = []; // ล้างรายการห้อง
+                });
+
+                // โหลดห้องใหม่ตามสาขาที่เลือก
+                if (value != null) {
+                  await _loadAvailableRooms(value);
+                }
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'กรุณาเลือกสาขา';
+                }
+                return null;
               },
             ),
           ],
@@ -1218,9 +1171,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
                         _userNameController.clear();
                         _userEmailController.clear();
                         _userPasswordController.clear();
-                      } else {
-                        // ตั้งค่ารหัสผู้เช่าเป็นชื่อผู้ใช้
-                        _userNameController.text = _tenantCodeController.text;
                       }
                     });
                   },
@@ -1246,6 +1196,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 controller: _userNameController,
                 decoration: InputDecoration(
                   labelText: 'ชื่อผู้ใช้ *',
+                  hintText: 'ใช้สำหรับเข้าสู่ระบบ',
                   prefixIcon: const Icon(Icons.person_outline),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1267,6 +1218,9 @@ class _TenantAddUIState extends State<TenantAddUI> {
                         if (value == null || value.trim().isEmpty) {
                           return 'กรุณากรอกชื่อผู้ใช้';
                         }
+                        if (value.length < 4) {
+                          return 'ชื่อผู้ใช้ต้องมีอย่างน้อย 4 ตัวอักษร';
+                        }
                         return null;
                       }
                     : null,
@@ -1278,6 +1232,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 controller: _userEmailController,
                 decoration: InputDecoration(
                   labelText: 'อีเมล *',
+                  hintText: 'example@email.com',
                   prefixIcon: const Icon(Icons.email),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1300,7 +1255,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                         if (value == null || value.trim().isEmpty) {
                           return 'กรุณากรอกอีเมล';
                         }
-                        if (!value.contains('@')) {
+                        if (!value.contains('@') || !value.contains('.')) {
                           return 'รูปแบบอีเมลไม่ถูกต้อง';
                         }
                         return null;
@@ -1314,7 +1269,18 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 controller: _userPasswordController,
                 decoration: InputDecoration(
                   labelText: 'รหัสผ่าน *',
+                  hintText: 'อย่างน้อย 6 ตัวอักษร',
                   prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showPassword = !_showPassword;
+                      });
+                    },
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1330,7 +1296,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
-                obscureText: true,
+                obscureText: !_showPassword,
                 validator: _createUserAccount
                     ? (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -1373,6 +1339,29 @@ class _TenantAddUIState extends State<TenantAddUI> {
               ],
             ),
             const SizedBox(height: 16),
+            if (_selectedBranchId == null) ...[
+              // แสดงเมื่อยังไม่ได้เลือกสาขา
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade600),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'กรุณาเลือกสาขาก่อนเพื่อดูห้องว่าง',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             DropdownButtonFormField<String>(
               value: _selectedRoomId,
               decoration: InputDecoration(
@@ -1399,7 +1388,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                   child: Row(
                     children: [
                       Text(
-                          '${room['room_category_name']}เลขที่${room['room_number']}'),
+                          '${room['room_category_name'] ?? 'ห้อง'} เลขที่ ${room['room_number']}'),
                       const SizedBox(width: 8),
                       Text(
                         '฿${room['room_price']?.toStringAsFixed(0) ?? '0'}',
@@ -1556,7 +1545,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 ),
                 child: Text(
                   _contractStartDate != null
-                      ? '${_contractStartDate!.day}/${_contractStartDate!.month}/${_contractStartDate!.year}'
+                      ? '${_contractStartDate!.day}/${_contractStartDate!.month}/${_contractStartDate!.year + 543}'
                       : 'เลือกวันที่',
                   style: TextStyle(
                     color: _contractStartDate != null
@@ -1592,7 +1581,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 ),
                 child: Text(
                   _contractEndDate != null
-                      ? '${_contractEndDate!.day}/${_contractEndDate!.month}/${_contractEndDate!.year}'
+                      ? '${_contractEndDate!.day}/${_contractEndDate!.month}/${_contractEndDate!.year + 543}'
                       : 'เลือกวันที่',
                   style: TextStyle(
                     color: _contractEndDate != null
@@ -1672,7 +1661,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
             ),
             const SizedBox(height: 16),
 
-            // วันที่ชำระและชำระค่าประกันแล้ว
+            // วันที่ชำระประจำเดือน
             DropdownButtonFormField<int>(
               value: _paymentDay,
               decoration: InputDecoration(
@@ -1852,9 +1841,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 const Expanded(
                   child: Text(
                     'กำลังโหลดข้อมูล...',
-                    style: TextStyle(
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(fontSize: 13),
                   ),
                 ),
               ],

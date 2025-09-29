@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenantlist_detail_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/tenant_service.dart';
-
 import '../../widgets/colors.dart';
 
 class TenantListUI extends StatefulWidget {
@@ -159,11 +158,7 @@ class _TenantListUIState extends State<TenantListUI> {
     setState(() {
       _filteredTenants = _tenants.where((tenant) {
         final searchTerm = _searchQuery.toLowerCase();
-        final matchesSearch = (tenant['tenant_code'] ?? '')
-                .toString()
-                .toLowerCase()
-                .contains(searchTerm) ||
-            (tenant['tenant_fullname'] ?? '')
+        final matchesSearch = (tenant['tenant_fullname'] ?? '')
                 .toString()
                 .toLowerCase()
                 .contains(searchTerm) ||
@@ -337,28 +332,6 @@ class _TenantListUIState extends State<TenantListUI> {
     }
   }
 
-  String _getGenderIcon(String? gender) {
-    switch (gender) {
-      case 'male':
-        return '👨';
-      case 'female':
-        return '👩';
-      default:
-        return '👤';
-    }
-  }
-
-  String _getGenderText(String? gender) {
-    switch (gender) {
-      case 'male':
-        return 'ชาย';
-      case 'female':
-        return 'หญิง';
-      default:
-        return 'ไม่ระบุ';
-    }
-  }
-
   bool get _canManage =>
       !_isAnonymous &&
       (_currentUser?.userRole == UserRole.superAdmin ||
@@ -371,7 +344,6 @@ class _TenantListUIState extends State<TenantListUI> {
 
   @override
   Widget build(BuildContext context) {
-    // Responsive layout
     final isWideScreen = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
@@ -464,10 +436,10 @@ class _TenantListUIState extends State<TenantListUI> {
                 ),
                 if (_selectedStatus != 'all') ...[
                   const PopupMenuDivider(),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: 'clear_all',
                     child: Row(
-                      children: const [
+                      children: [
                         Icon(Icons.clear_all, size: 18, color: Colors.red),
                         SizedBox(width: 8),
                         Text(
@@ -519,7 +491,7 @@ class _TenantListUIState extends State<TenantListUI> {
                   controller: _searchController,
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: 'ค้นหาผู้เช่า (รหัส, ชื่อ, เบอร์โทร)',
+                    hintText: 'ค้นหาผู้เช่า (ชื่อ, เบอร์โทร, บัตรประชาชน)',
                     hintStyle: TextStyle(color: Colors.grey[500]),
                     prefixIcon: Icon(Icons.search, color: Colors.grey[700]),
                     suffixIcon: _searchQuery.isNotEmpty
@@ -546,32 +518,36 @@ class _TenantListUIState extends State<TenantListUI> {
                 if (_branches.isNotEmpty && widget.branchId == null) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _selectedBranchId ?? 'all',
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: 'all',
-                          child: Text('ทุกสาขา'),
-                        ),
-                        ..._branches.map((branch) {
-                          return DropdownMenuItem<String>(
-                            value: branch['branch_id'] as String,
-                            child: Text(branch['branch_name'] ?? ''),
-                          );
-                        }).toList(),
-                      ],
-                      onChanged: (value) {
-                        _onBranchChanged(value == 'all' ? null : value);
-                      },
-                    ),
-                  ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: // ใน dropdown filter ของสาขา
+                          DropdownButton<String>(
+                        value: _selectedBranchId ?? 'all',
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: 'all',
+                            child: Text('ทุกสาขา'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: 'null',
+                            child: Text('ยังไม่ระบุสาขา'),
+                          ),
+                          ..._branches.map((branch) {
+                            return DropdownMenuItem<String>(
+                              value: branch['branch_id'] as String,
+                              child: Text(branch['branch_name'] ?? ''),
+                            );
+                          }).toList(),
+                        ],
+                        onChanged: (value) {
+                          _onBranchChanged(value == 'all' ? null : value);
+                        },
+                      )),
                 ],
                 if (_selectedBranchId != null ||
                     _selectedStatus != 'all' ||
@@ -684,7 +660,7 @@ class _TenantListUIState extends State<TenantListUI> {
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 400,
-        mainAxisExtent: 220,
+        mainAxisExtent: 200,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -752,6 +728,10 @@ class _TenantListUIState extends State<TenantListUI> {
   Widget _buildTenantCard(Map<String, dynamic> tenant, bool canManage) {
     final isActive = tenant['is_active'] ?? false;
     final gender = tenant['gender'];
+    final profileImageUrl = tenant['tenant_profile'];
+    final tenantId = tenant['tenant_id'];
+    final branchName = tenant['branch_name'] ?? 'ไม่ระบุสาขา';
+    final hasBranch = tenant['branch_id'] != null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -760,8 +740,17 @@ class _TenantListUIState extends State<TenantListUI> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          // Navigate to tenant detail
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TenantDetailUI(tenantId: tenantId),
+            ),
+          );
+
+          if (result == true && mounted) {
+            await _loadTenants();
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -770,16 +759,10 @@ class _TenantListUIState extends State<TenantListUI> {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getGenderIcon(gender),
-                      style: const TextStyle(fontSize: 24),
-                    ),
+                  _buildProfileImage(
+                    profileImageUrl: profileImageUrl,
+                    gender: gender,
+                    tenantName: tenant['tenant_fullname'] ?? '',
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -795,13 +778,24 @@ class _TenantListUIState extends State<TenantListUI> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'รหัส: ${tenant['tenant_code'] ?? 'ไม่ระบุ'}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.badge,
+                                size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                tenant['tenant_idcard'] ?? 'ไม่ระบุ',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -843,25 +837,70 @@ class _TenantListUIState extends State<TenantListUI> {
                 ],
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
+
+              // เบอร์โทร
+              Row(
                 children: [
-                  _buildInfoChip(
-                      Icons.badge, tenant['tenant_idcard'] ?? 'ไม่ระบุ'),
-                  _buildInfoChip(
-                      Icons.phone, tenant['tenant_phone'] ?? 'ไม่ระบุ'),
-                  _buildInfoChip(Icons.wc, _getGenderText(gender)),
+                  Icon(Icons.phone, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      tenant['tenant_phone'] ?? 'ไม่ระบุ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
+              const SizedBox(height: 6),
+
+              // แสดงสาขา
+              Row(
+                children: [
+                  Icon(
+                    Icons.business,
+                    size: 14,
+                    color: hasBranch ? Colors.grey[600] : Colors.orange[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      branchName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            hasBranch ? Colors.grey[600] : Colors.orange[600],
+                        fontStyle:
+                            hasBranch ? FontStyle.normal : FontStyle.italic,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+
               if (canManage) ...[
                 const Divider(height: 24),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          // View details
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  TenantDetailUI(tenantId: tenantId),
+                            ),
+                          );
+                          if (result == true && mounted) {
+                            await _loadTenants();
+                          }
                         },
                         icon: const Icon(Icons.visibility, size: 16),
                         label: const Text('ดู', style: TextStyle(fontSize: 13)),
@@ -876,7 +915,7 @@ class _TenantListUIState extends State<TenantListUI> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // Edit
+                          // TODO: Navigate to edit page
                         },
                         icon: const Icon(Icons.edit, size: 16),
                         label:
@@ -946,24 +985,74 @@ class _TenantListUIState extends State<TenantListUI> {
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.grey[600]),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[700],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+  Widget _buildProfileImage({
+    required String? profileImageUrl,
+    required String? gender,
+    required String tenantName,
+  }) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.primary.withOpacity(0.1),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 2,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: profileImageUrl != null && profileImageUrl.isNotEmpty
+            ? Image.network(
+                profileImageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildProfileFallback(tenantName);
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                      strokeWidth: 2,
+                      color: AppTheme.primary,
+                    ),
+                  );
+                },
+              )
+            : _buildProfileFallback(tenantName),
+      ),
+    );
+  }
+
+  Widget _buildProfileFallback(String tenantName) {
+    return Container(
+      color: AppTheme.primary.withOpacity(0.1),
+      child: Center(
+        child: Text(
+          _getInitials(tenantName),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primary,
           ),
         ),
-      ],
+      ),
     );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'T';
+
+    final words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    } else {
+      return words[0][0].toUpperCase();
+    }
   }
 }
