@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/room_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
@@ -646,6 +646,7 @@ class _BranchListDetailState extends State<BranchListDetail>
           ),
           SizedBox(height: 12),
 
+          // ดูผู้เช่าในสาขา
           _buildManageCard(
             icon: Icons.person_outline,
             title: 'ดูผู้เช่าในสาขา',
@@ -663,6 +664,41 @@ class _BranchListDetailState extends State<BranchListDetail>
               );
               if (result == true) {
                 await _loadBranchDetails();
+              }
+            },
+          ),
+          SizedBox(height: 12),
+
+          // ✨ เพิ่มผู้เช่าใหม่ในสาขา (ใหม่!)
+          _buildManageCard(
+            icon: Icons.person_add,
+            title: 'เพิ่มผู้เช่าใหม่',
+            subtitle: 'เพิ่มผู้เช่าใหม่เข้าสาขานี้',
+            color: Colors.purple,
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TenantListUI(
+                    branchId: widget.branchId,
+                    branchName: _branchData!['branch_name'] ?? '',
+                  ),
+                ),
+              );
+              if (result == true) {
+                await _loadBranchDetails();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text('เพิ่มผู้เช่าสำเร็จ'),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               }
             },
           ),

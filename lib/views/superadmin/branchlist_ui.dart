@@ -861,7 +861,7 @@ class _BranchlistUiState extends State<BranchlistUi> {
                     : 'เริ่มต้นโดยการเพิ่มสาขาแรก',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white,
+              color: Colors.black,
             ),
           ),
           if (_searchQuery.isEmpty && _canAdd)

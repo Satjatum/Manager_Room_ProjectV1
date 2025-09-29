@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
 import 'superadmin/superadmindash_ui.dart';
+import 'tenant/tenantdash_ui.dart';
 
 class LoginUi extends StatefulWidget {
   const LoginUi({Key? key}) : super(key: key);
@@ -125,17 +126,29 @@ class _LoginUiState extends State<LoginUi> {
 
   Future<void> _navigateToDashboard(UserModel user) async {
     try {
-      // For now, all roles go to SuperAdmin dashboard (replace with role-specific dashboards later)
-      const Widget targetPage = SuperadmindashUi();
+      // เลือก dashboard ตาม role
+      Widget targetPage;
+
+      switch (user.userRole) {
+        case UserRole.superAdmin:
+          targetPage = const SuperadmindashUi();
+          break;
+        case UserRole.admin:
+          targetPage = const SuperadmindashUi();
+          break;
+        case UserRole.tenant:
+          targetPage = const TenantdashUi();
+          break;
+        case UserRole.user:
+        default:
+          targetPage = const LoginUi(); // หรือ user dashboard
+          break;
+      }
 
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => AuthWrapper(
-            requiredPermissions: [DetailedPermission.viewOwnData],
-            child: targetPage,
-            fallback: const LoginUi(),
-          ),
+          pageBuilder: (context, animation, secondaryAnimation) => targetPage,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),

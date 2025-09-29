@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:  # เพิ่มบรรทัดนี้
+  flutter_localizations: # เพิ่มบรรทัดนี้
     sdk: flutter
 
   cupertino_icons: ^1.0.8
@@ -23,16 +23,15 @@ dependencies:
 
   # Image Picker
   image_picker: ^1.1.2
-  
+
   # Image Compress
   flutter_image_compress: ^2.3.0
-  
-  # crypt 
+
+  # crypt
   crypto: ^3.0.3
 
   # Shared Preferences
   shared_preferences: ^2.2.2
-
 
 dev_dependencies:
   flutter_test:
@@ -41,7 +40,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/
-    - assets/icons/
-    - assets/fonts/

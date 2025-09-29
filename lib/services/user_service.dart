@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../models/user_models.dart';
+import 'dart:convert';
 
 class UserService {
   static final SupabaseClient _supabase = Supabase.instance.client;
@@ -181,16 +182,18 @@ class UserService {
       });
 
       // Prepare data for insertion
+// Prepare data for insertion
       final insertData = {
         'user_name': userData['user_name'].toString().trim(),
         'user_email': userData['user_email'].toString().trim(),
         'user_pass': hashedPassword,
         'role': userData['role'] ?? 'user',
-        'permissions': userData['permissions'] ?? '[]',
+        'permissions': userData['permissions'] != null
+            ? jsonEncode(userData['permissions']) // แปลง list เป็น JSON string
+            : '[]',
         'is_active': userData['is_active'] ?? true,
         'created_by': currentUser.userId,
       };
-
       final result =
           await _supabase.from('users').insert(insertData).select().single();
 

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
+import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
@@ -108,7 +109,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
     _pages = [
       const SuperadmindashUi(), // Dashboard
       const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Users - ใส่ page ที่ถูกต้องตรงนี้
+      const TenantAddUI(), // Users - ใส่ page ที่ถูกต้องตรงนี้
       const SuperadmindashUi(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
       const SettingUi(), // Settings
     ];
@@ -181,13 +182,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
       ),
     ];
 
-    _pages = [
-      const SuperadmindashUi(), // User Dashboard - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Rooms - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Tenants - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Issues - ใส่ page ที่ถูกต้องตรงนี้
-      const SettingUi(), // Settings
-    ];
+    _pages = [];
   }
 
   void _setupTenantNavigation() {
@@ -220,11 +215,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const SuperadmindashUi(), // Tenant Home - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Bills - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Payments - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Issues - ใส่ page ที่ถูกต้องตรงนี้
-      const SettingUi(), // Profile - ใส่ page ที่ถูกต้องตรงนี้
+      const TenantdashUi(), // Tenant Home - ใส่ page ที่ถูกต้องตรงนี้
     ];
   }
 

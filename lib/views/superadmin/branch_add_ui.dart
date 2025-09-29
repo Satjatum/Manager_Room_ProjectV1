@@ -974,6 +974,15 @@ class _BranchAddPageState extends State<BranchAddPage> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
               ),
@@ -995,6 +1004,15 @@ class _BranchAddPageState extends State<BranchAddPage> {
                 prefixIcon: const Icon(Icons.store),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1018,6 +1036,15 @@ class _BranchAddPageState extends State<BranchAddPage> {
                 prefixIcon: const Icon(Icons.location_on),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1086,6 +1113,15 @@ class _BranchAddPageState extends State<BranchAddPage> {
                   prefixIcon: const Icon(Icons.admin_panel_settings),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -1202,6 +1238,15 @@ class _BranchAddPageState extends State<BranchAddPage> {
                 labelText: 'รายละเอียดสาขา',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,

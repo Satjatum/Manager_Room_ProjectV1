@@ -1061,6 +1061,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
               ),
@@ -1079,6 +1088,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 prefixIcon: const Icon(Icons.label),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1103,6 +1121,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 prefixIcon: const Icon(Icons.category),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1129,6 +1156,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 prefixIcon: const Icon(Icons.aspect_ratio),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1173,6 +1209,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
               ),
@@ -1196,6 +1241,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 prefixIcon: const Icon(Icons.security),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1435,6 +1489,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
               ),
@@ -1489,6 +1552,15 @@ class _RoomAddUIState extends State<RoomAddUI> {
                     'อธิบายเกี่ยวกับห้องพัก เช่น สิ่งอำนวยความสะดวก, ข้อมูลเพิ่มเติม',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,

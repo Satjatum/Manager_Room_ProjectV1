@@ -1112,10 +1112,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
               controller: _branchCodeController,
               decoration: InputDecoration(
                 labelText: 'รหัสสาขา *',
-                hintText: 'เช่น BR001, MAIN001',
                 prefixIcon: const Icon(Icons.qr_code),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1138,10 +1146,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
               controller: _branchNameController,
               decoration: InputDecoration(
                 labelText: 'ชื่อสาขา *',
-                hintText: 'เช่น สาขาสยามสแควร์, สาขาคลองเตย',
                 prefixIcon: const Icon(Icons.store),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1165,10 +1181,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
               maxLines: 3,
               decoration: InputDecoration(
                 labelText: 'ที่อยู่สาขา',
-                hintText: 'กรอกที่อยู่เต็มรูปแบบของสาขา',
                 prefixIcon: const Icon(Icons.location_on),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -1344,6 +1368,16 @@ class _BranchEditPageState extends State<BranchEditPage> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Color(0xff10B981), width: 2),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: Colors.grey[300]!, width: 1),
+                    ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                   ),
@@ -1464,6 +1498,15 @@ class _BranchEditPageState extends State<BranchEditPage> {
                     'อธิบายเกี่ยวกับสาขา เช่น จุดเด่น, สิ่งอำนวยความสะดวก, หรือข้อมูลเพิ่มเติม',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/tenant_service.dart';
+
 import '../../widgets/colors.dart';
 
 class TenantListUI extends StatefulWidget {
@@ -86,7 +89,6 @@ class _TenantListUIState extends State<TenantListUI> {
       List<Map<String, dynamic>> tenants;
 
       if (_isAnonymous) {
-        // Anonymous users cannot see tenants
         tenants = [];
       } else if (_currentUser!.userRole == UserRole.superAdmin ||
           _currentUser!.userRole == UserRole.admin) {
@@ -119,7 +121,7 @@ class _TenantListUIState extends State<TenantListUI> {
           SnackBar(
             content: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล: ${e.toString()}'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'ลองใหม่',
               textColor: Colors.white,
@@ -211,26 +213,25 @@ class _TenantListUIState extends State<TenantListUI> {
         title: Row(
           children: [
             Icon(Icons.login, color: AppTheme.primary),
-            SizedBox(width: 8),
-            Text('ต้องเข้าสู่ระบบ'),
+            const SizedBox(width: 8),
+            const Text('ต้องเข้าสู่ระบบ'),
           ],
         ),
         content: Text('คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถ$actionได้'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('ยกเลิก'),
+            child: const Text('ยกเลิก'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Navigate to login page
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
             ),
-            child: Text('เข้าสู่ระบบ'),
+            child: const Text('เข้าสู่ระบบ'),
           ),
         ],
       ),
@@ -249,11 +250,13 @@ class _TenantListUIState extends State<TenantListUI> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('เปลี่ยนสถานะผู้เช่า $tenantName'),
-        content: Text('คุณต้องการเปลี่ยนสถานะผู้เช่านี้ใช่หรือไม่?'),
+        content: Text(currentStatus
+            ? 'คุณต้องการปิดใช้งานผู้เช่านี้ใช่หรือไม่?'
+            : 'คุณต้องการเปิดใช้งานผู้เช่านี้ใช่หรือไม่?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('ยกเลิก'),
+            child: const Text('ยกเลิก'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -261,7 +264,7 @@ class _TenantListUIState extends State<TenantListUI> {
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
             ),
-            child: Text('ยืนยัน'),
+            child: const Text('ยืนยัน'),
           ),
         ],
       ),
@@ -287,7 +290,7 @@ class _TenantListUIState extends State<TenantListUI> {
               SnackBar(
                 content: Text(result['message']),
                 backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
+                duration: const Duration(seconds: 2),
               ),
             );
             await _loadTenants();
@@ -305,11 +308,32 @@ class _TenantListUIState extends State<TenantListUI> {
             SnackBar(
               content: Text(e.toString().replaceAll('Exception: ', '')),
               backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
       }
+    }
+  }
+
+  Future<void> _navigateToAddTenant() async {
+    if (_isAnonymous) {
+      _showLoginPrompt('เพิ่มผู้เช่า');
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TenantAddUI(
+          branchId: widget.branchId,
+          branchName: widget.branchName,
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _loadTenants();
     }
   }
 
@@ -338,13 +362,21 @@ class _TenantListUIState extends State<TenantListUI> {
   bool get _canManage =>
       !_isAnonymous &&
       (_currentUser?.userRole == UserRole.superAdmin ||
-          _currentUser?.userRole == UserRole.admin);
+          _currentUser?.userRole == UserRole.admin ||
+          _currentUser?.hasAnyPermission([
+                DetailedPermission.all,
+                DetailedPermission.manageTenants,
+              ]) ==
+              true);
 
   @override
   Widget build(BuildContext context) {
+    // Responsive layout
+    final isWideScreen = MediaQuery.of(context).size.width > 600;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('จัดการผู้เช่า'),
+        title: const Text('จัดการผู้เช่า'),
         backgroundColor: AppTheme.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -358,12 +390,12 @@ class _TenantListUIState extends State<TenantListUI> {
                     right: 0,
                     top: 0,
                     child: Container(
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
                         color: Colors.red,
                         shape: BoxShape.circle,
                       ),
-                      child: SizedBox(width: 8, height: 8),
+                      child: const SizedBox(width: 8, height: 8),
                     ),
                   ),
               ],
@@ -431,13 +463,13 @@ class _TenantListUIState extends State<TenantListUI> {
                   ),
                 ),
                 if (_selectedStatus != 'all') ...[
-                  PopupMenuDivider(),
+                  const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'clear_all',
                     child: Row(
-                      children: [
+                      children: const [
                         Icon(Icons.clear_all, size: 18, color: Colors.red),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'ล้างตัวกรองทั้งหมด',
                           style: TextStyle(color: Colors.red),
@@ -470,14 +502,14 @@ class _TenantListUIState extends State<TenantListUI> {
       body: Column(
         children: [
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppTheme.primary,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -487,7 +519,7 @@ class _TenantListUIState extends State<TenantListUI> {
                   controller: _searchController,
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: 'ค้นหาผู้เช่า',
+                    hintText: 'ค้นหาผู้เช่า (รหัส, ชื่อ, เบอร์โทร)',
                     hintStyle: TextStyle(color: Colors.grey[500]),
                     prefixIcon: Icon(Icons.search, color: Colors.grey[700]),
                     suffixIcon: _searchQuery.isNotEmpty
@@ -502,24 +534,29 @@ class _TenantListUIState extends State<TenantListUI> {
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                   ),
                 ),
                 if (_branches.isNotEmpty && widget.branchId == null) ...[
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: DropdownButton<String>(
                       value: _selectedBranchId ?? 'all',
                       isExpanded: true,
+                      underline: const SizedBox(),
                       items: [
-                        DropdownMenuItem<String>(
+                        const DropdownMenuItem<String>(
                           value: 'all',
                           child: Text('ทุกสาขา'),
                         ),
@@ -539,9 +576,10 @@ class _TenantListUIState extends State<TenantListUI> {
                 if (_selectedBranchId != null ||
                     _selectedStatus != 'all' ||
                     _searchQuery.isNotEmpty) ...[
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(8),
@@ -549,13 +587,13 @@ class _TenantListUIState extends State<TenantListUI> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.filter_list_alt,
+                        const Icon(Icons.filter_list_alt,
                             size: 16, color: Colors.white),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _getActiveFiltersText(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -575,12 +613,12 @@ class _TenantListUIState extends State<TenantListUI> {
                             _loadTenants();
                           },
                           child: Container(
-                            padding: EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.3),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.close,
                               size: 14,
                               color: Colors.white,
@@ -601,8 +639,8 @@ class _TenantListUIState extends State<TenantListUI> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         CircularProgressIndicator(color: AppTheme.primary),
-                        SizedBox(height: 16),
-                        Text('กำลังโหลดข้อมูล...'),
+                        const SizedBox(height: 16),
+                        const Text('กำลังโหลดข้อมูล...'),
                       ],
                     ),
                   )
@@ -611,18 +649,50 @@ class _TenantListUIState extends State<TenantListUI> {
                     : RefreshIndicator(
                         onRefresh: _loadTenants,
                         color: AppTheme.primary,
-                        child: ListView.builder(
-                          padding: EdgeInsets.all(16),
-                          itemCount: _filteredTenants.length,
-                          itemBuilder: (context, index) {
-                            final tenant = _filteredTenants[index];
-                            return _buildTenantCard(tenant, _canManage);
-                          },
-                        ),
+                        child:
+                            isWideScreen ? _buildGridView() : _buildListView(),
                       ),
           ),
         ],
       ),
+      floatingActionButton: _canManage
+          ? FloatingActionButton.extended(
+              onPressed: _navigateToAddTenant,
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add),
+              label: const Text('เพิ่มผู้เช่า'),
+              tooltip: 'เพิ่มผู้เช่าใหม่',
+            )
+          : null,
+    );
+  }
+
+  Widget _buildListView() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _filteredTenants.length,
+      itemBuilder: (context, index) {
+        final tenant = _filteredTenants[index];
+        return _buildTenantCard(tenant, _canManage);
+      },
+    );
+  }
+
+  Widget _buildGridView() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 400,
+        mainAxisExtent: 220,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: _filteredTenants.length,
+      itemBuilder: (context, index) {
+        final tenant = _filteredTenants[index];
+        return _buildTenantCard(tenant, _canManage);
+      },
     );
   }
 
@@ -632,28 +702,48 @@ class _TenantListUIState extends State<TenantListUI> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             _isAnonymous
                 ? 'กรุณาเข้าสู่ระบบเพื่อดูข้อมูลผู้เช่า'
                 : _searchQuery.isNotEmpty
                     ? 'ไม่พบผู้เช่าที่ค้นหา'
                     : 'ยังไม่มีผู้เช่า',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 18,
-              color: Colors.black,
+              color: Colors.black87,
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             _searchQuery.isNotEmpty
                 ? 'ลองเปลี่ยนคำค้นหา หรือกรองสถานะ'
                 : _isAnonymous
                     ? ''
                     : 'เริ่มต้นโดยการเพิ่มผู้เช่าใหม่',
-            style: TextStyle(fontSize: 14, color: Colors.black),
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
           ),
+          if (_searchQuery.isEmpty && _canManage)
+            Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: ElevatedButton.icon(
+                onPressed: _navigateToAddTenant,
+                icon: const Icon(Icons.add),
+                label: const Text('เพิ่มผู้เช่า'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -664,49 +754,52 @@ class _TenantListUIState extends State<TenantListUI> {
     final gender = tenant['gender'];
 
     return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      elevation: 6,
-      shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           // Navigate to tenant detail
         },
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppTheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       _getGenderIcon(gender),
-                      style: TextStyle(fontSize: 28),
+                      style: const TextStyle(fontSize: 24),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           tenant['tenant_fullname'] ?? 'ไม่ระบุ',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: const TextStyle(
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           'รหัส: ${tenant['tenant_code'] ?? 'ไม่ระบุ'}',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: Colors.grey[600],
                           ),
                         ),
@@ -714,12 +807,13 @@ class _TenantListUIState extends State<TenantListUI> {
                     ),
                   ),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: isActive
                           ? Colors.green.withOpacity(0.1)
                           : Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isActive
                             ? Colors.green.withOpacity(0.3)
@@ -731,14 +825,14 @@ class _TenantListUIState extends State<TenantListUI> {
                       children: [
                         Icon(
                           isActive ? Icons.check_circle : Icons.cancel,
-                          size: 14,
+                          size: 12,
                           color: isActive ? Colors.green : Colors.orange,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+                          isActive ? 'เปิด' : 'ปิด',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: isActive ? Colors.green : Colors.orange,
                           ),
@@ -748,65 +842,53 @@ class _TenantListUIState extends State<TenantListUI> {
                   ),
                 ],
               ),
-              SizedBox(height: 12),
-              Row(
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
                 children: [
-                  Icon(Icons.badge, size: 16, color: Colors.grey[600]),
-                  SizedBox(width: 4),
-                  Text(
-                    'เลขบัตร: ${tenant['tenant_idcard'] ?? 'ไม่ระบุ'}',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  ),
-                  SizedBox(width: 16),
-                  Icon(Icons.phone, size: 16, color: Colors.grey[600]),
-                  SizedBox(width: 4),
-                  Text(
-                    tenant['tenant_phone'] ?? 'ไม่ระบุ',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  ),
-                  SizedBox(width: 16),
-                  Icon(Icons.wc, size: 16, color: Colors.grey[600]),
-                  SizedBox(width: 4),
-                  Text(
-                    _getGenderText(gender),
-                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                  ),
+                  _buildInfoChip(
+                      Icons.badge, tenant['tenant_idcard'] ?? 'ไม่ระบุ'),
+                  _buildInfoChip(
+                      Icons.phone, tenant['tenant_phone'] ?? 'ไม่ระบุ'),
+                  _buildInfoChip(Icons.wc, _getGenderText(gender)),
                 ],
               ),
               if (canManage) ...[
-                Divider(height: 24),
+                const Divider(height: 24),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          // View tenant detail
+                          // View details
                         },
-                        icon: Icon(Icons.visibility, size: 16),
-                        label: Text('ดู'),
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('ดู', style: TextStyle(fontSize: 13)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.primary,
                           side: BorderSide(color: AppTheme.primary),
-                          padding: EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // Edit tenant
+                          // Edit
                         },
-                        icon: Icon(Icons.edit, size: 16),
-                        label: Text('แก้ไข'),
+                        icon: const Icon(Icons.edit, size: 16),
+                        label:
+                            const Text('แก้ไข', style: TextStyle(fontSize: 13)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'toggle') {
@@ -829,7 +911,7 @@ class _TenantListUIState extends State<TenantListUI> {
                                 size: 16,
                                 color: isActive ? Colors.orange : Colors.green,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'),
                             ],
                           ),
@@ -841,17 +923,18 @@ class _TenantListUIState extends State<TenantListUI> {
                 ),
               ] else if (_isAnonymous)
                 Padding(
-                  padding: EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.only(top: 12),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () => _showLoginPrompt('ดูรายละเอียด'),
-                      icon: Icon(Icons.visibility, size: 16),
-                      label: Text('ดูรายละเอียด'),
+                      icon: const Icon(Icons.visibility, size: 16),
+                      label: const Text('ดูรายละเอียด',
+                          style: TextStyle(fontSize: 13)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primary,
                         side: BorderSide(color: AppTheme.primary),
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
                     ),
                   ),
@@ -860,6 +943,27 @@ class _TenantListUIState extends State<TenantListUI> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[700],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
