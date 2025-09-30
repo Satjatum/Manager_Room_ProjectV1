@@ -1064,22 +1064,42 @@ class _BranchlistUiState extends State<BranchlistUi> {
                     ),
 
                   // เจ้าของสาขา
-                  if (branch['owner_name'] != null &&
-                      branch['owner_name'].toString().isNotEmpty)
+                  if (branch['primary_manager_name'] != null &&
+                      branch['primary_manager_name'].toString().isNotEmpty)
                     Container(
                       margin: EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
                           Icon(Icons.person, size: 16, color: Colors.grey[600]),
                           SizedBox(width: 6),
-                          Text(
-                            'เจ้าของ: ${branch['owner_name']}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: Text(
+                              'ผู้ดูแลหลัก: ${branch['primary_manager_name']}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
+                          if (branch['manager_count'] != null &&
+                              branch['manager_count'] > 1)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '+${branch['manager_count'] - 1}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),

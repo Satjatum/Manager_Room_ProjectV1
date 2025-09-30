@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../services/tenant_service.dart';
-import '../../services/image_service.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../models/user_models.dart';
 import '../../widgets/colors.dart';

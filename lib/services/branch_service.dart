@@ -5,7 +5,7 @@ import '../models/user_models.dart';
 class BranchService {
   static final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Get all branches with pagination and filtering - updated to use branches_with_owner view
+  // Get all branches with pagination and filtering - updated to use branches_with_managers view
   static Future<List<Map<String, dynamic>>> getAllBranches({
     int offset = 0,
     int limit = 100,
@@ -16,7 +16,7 @@ class BranchService {
   }) async {
     try {
       // Build query using the view instead of direct table
-      var query = _supabase.from('branches_with_owner').select('*');
+      var query = _supabase.from('branches_with_managers').select('*');
 
       // Add filters
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -37,6 +37,7 @@ class BranchService {
 
       return List<Map<String, dynamic>>.from(result);
     } catch (e) {
+      print('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
     }
   }
@@ -61,7 +62,7 @@ class BranchService {
 
       // For other users, return branches they have access to
       var query = _supabase
-          .from('branches_with_owner')
+          .from('branches_with_managers')
           .select('*')
           .eq('is_active', true);
 
@@ -74,6 +75,7 @@ class BranchService {
 
       return List<Map<String, dynamic>>.from(result);
     } catch (e) {
+      print('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
     }
   }
@@ -82,13 +84,14 @@ class BranchService {
   static Future<Map<String, dynamic>?> getBranchById(String branchId) async {
     try {
       final result = await _supabase
-          .from('branches_with_owner')
+          .from('branches_with_managers')
           .select('*')
           .eq('branch_id', branchId)
           .maybeSingle();
 
       return result;
     } catch (e) {
+      print('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
     }
   }
@@ -175,7 +178,7 @@ class BranchService {
         'branch_code': branchData['branch_code'].toString().trim(),
         'branch_name': branchData['branch_name'].toString().trim(),
         'branch_address': branchData['branch_address']?.toString().trim(),
-        'owner_id': branchData['owner_id'],
+        'owner_id': currentUser.userId,
         'branch_image': branchData['branch_image'],
         'branch_desc': branchData['branch_desc'],
         'is_active': branchData['is_active'] ?? true,
@@ -209,6 +212,22 @@ class BranchService {
         'success': false,
         'message': 'เกิดข้อผิดพลาดในการสร้างสาขา: $e',
       };
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getBranchesManagedByUser(
+      String userId) async {
+    try {
+      final result = await _supabase.from('branch_managers').select('''
+          branches:branch_id (
+            *
+          )
+        ''').eq('user_id', userId);
+
+      return List<Map<String, dynamic>>.from(
+          result.map((item) => item['branches']).toList());
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดสาขาที่ดูแล: $e');
     }
   }
 
@@ -300,7 +319,7 @@ class BranchService {
         'branch_code': branchData['branch_code'].toString().trim(),
         'branch_name': branchData['branch_name'].toString().trim(),
         'branch_address': branchData['branch_address']?.toString().trim(),
-        'owner_id': branchData['owner_id'],
+        'owner_id': currentUser.userId,
         'branch_image': branchData['branch_image'],
         'branch_desc': branchData['branch_desc'],
         'is_active': branchData['is_active'] ?? true,
@@ -698,11 +717,11 @@ class BranchService {
       }
 
       final result = await _supabase
-          .from('branches_with_owner')
+          .from('branches_with_managers')
           .select('*')
           .or('branch_name.ilike.%$searchQuery%,'
               'branch_code.ilike.%$searchQuery%,'
-              'owner_name.ilike.%$searchQuery%,'
+              'primary_manager_name.ilike.%$searchQuery%,'
               'branch_address.ilike.%$searchQuery%')
           .eq('is_active', true)
           .order('branch_name')
@@ -718,13 +737,14 @@ class BranchService {
   static Future<List<Map<String, dynamic>>> getActiveBranches() async {
     try {
       final result = await _supabase
-          .from('branches_with_owner')
+          .from('branches_with_managers')
           .select('*')
           .eq('is_active', true)
           .order('created_at', ascending: false);
 
       return List<Map<String, dynamic>>.from(result);
     } catch (e) {
+      print('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
     }
   }

@@ -45,7 +45,6 @@ CREATE TABLE public.branches (
   branch_name    varchar(255) NOT NULL,
   branch_image   text,
   branch_address text,
-  owner_id       uuid REFERENCES public.users(user_id), -- Changed from owner_name to owner_id
   branch_desc    text, -- Changed from jsonb to text for simplicity
   is_active      boolean      NOT NULL DEFAULT true,
   created_by     uuid REFERENCES public.users(user_id),
@@ -53,25 +52,63 @@ CREATE TABLE public.branches (
   updated_at     timestamptz  NOT NULL DEFAULT now() -- Added updated_at field
 );
 
-ALTER TABLE public.branches DROP COLUMN IF EXISTS owner_name;
+-- สร้างตาราง branch_managers
+CREATE TABLE public.branch_managers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  branch_id uuid NOT NULL REFERENCES public.branches(branch_id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  is_primary boolean NOT NULL DEFAULT false,
+  assigned_at timestamptz NOT NULL DEFAULT now(),
+  assigned_by uuid REFERENCES public.users(user_id),
+  UNIQUE(branch_id, user_id)
+);
 
--- Update branch service queries to join with users table for owner name
--- Create a view for easier querying of branch with owner info
-CREATE OR REPLACE VIEW public.branches_with_owner AS
-SELECT 
-  b.*,
-  u.user_name as owner_name
-FROM public.branches b
-LEFT JOIN public.users u ON b.owner_id = u.user_id;
-
--- Update indexes
-DROP INDEX IF EXISTS idx_branches_owner_name;
-CREATE INDEX idx_branches_owner_id ON public.branches(owner_id);
-
--- Sample data update (remove old owner_name inserts)
-UPDATE public.branches SET owner_id = (
-  SELECT user_id FROM public.users WHERE user_name = 'admin' LIMIT 1
-) WHERE owner_id IS NULL;
+create view public.branches_with_managers as
+select
+  branch_id,
+  branch_code,
+  branch_name,
+  branch_image,
+  branch_address,
+  branch_desc,
+  is_active,
+  created_by,
+  created_at,
+  updated_at,
+  owner_id,
+  (
+    select
+      u.user_name
+    from
+      branch_managers bm
+      join users u on bm.user_id = u.user_id
+    where
+      bm.branch_id = b.branch_id
+      and bm.is_primary = true
+    limit
+      1
+  ) as primary_manager_name,
+  (
+    select
+      bm.user_id
+    from
+      branch_managers bm
+    where
+      bm.branch_id = b.branch_id
+      and bm.is_primary = true
+    limit
+      1
+  ) as primary_manager_id,
+  (
+    select
+      count(*) as count
+    from
+      branch_managers bm
+    where
+      bm.branch_id = b.branch_id
+  ) as manager_count
+from
+  branches b;
 
 -- ============================================
 -- 3) ROOM MANAGEMENT - ระบบจัดการห้อง
@@ -440,6 +477,8 @@ ALTER TABLE public.service_rates               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices                    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoice_additional_charges  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments                    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.branch_managers             ENABLE ROW LEVEL SECURITY;
+
 
 -- (ตามโจทย์ ให้ anon ทำได้ทั้งหมดในทุกตาราง)
 DO $
@@ -453,12 +492,14 @@ BEGIN
         'users','user_sessions','branches','rooms','room_images','room_amenities',
         'amenities','room_types','room_categories','tenants','rental_contracts',
         'issue_reports','issue_images','service_rates','invoices',
-        'invoice_additional_charges','payments'
+        'invoice_additional_charges','payments,branch_managers'
       )
   LOOP
     EXECUTE format('CREATE POLICY "anon_all_%I" ON public.%I FOR ALL USING (true) WITH CHECK (true);', t, t);
   END LOOP;
 END$;
+
+
 
 -- ============================================
 -- STORAGE BUCKETS + POLICIES

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/branch_service.dart';
 import '../../services/user_service.dart';
 import '../../services/image_service.dart';
+import '../../services/branch_manager_service.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../widgets/colors.dart';
@@ -22,14 +23,23 @@ class BranchEditPage extends StatefulWidget {
   State<BranchEditPage> createState() => _BranchEditPageState();
 }
 
-class _BranchEditPageState extends State<BranchEditPage> {
+class _BranchEditPageState extends State<BranchEditPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _branchCodeController = TextEditingController();
   final _branchNameController = TextEditingController();
   final _branchAddressController = TextEditingController();
   final _branchDescController = TextEditingController();
 
-  String? _selectedOwnerId;
+  late TabController _tabController;
+  int _currentTabIndex = 0;
+
+  // Manager-related state
+  List<String> _selectedManagerIds = [];
+  String? _primaryManagerId;
+  List<Map<String, dynamic>> _currentManagers = [];
+  List<Map<String, dynamic>> _originalManagers = [];
+
   String? _currentImageUrl;
   File? _selectedImage;
   Uint8List? _selectedImageBytes;
@@ -37,7 +47,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
   bool _isActive = true;
   bool _isLoading = false;
   bool _isLoadingData = true;
-  bool _isLoadingOwners = false;
+  bool _isLoadingManagers = false;
   bool _imageChanged = false;
   bool _isCheckingAuth = true;
 
@@ -48,11 +58,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        _currentTabIndex = _tabController.index;
+      });
+    });
     _initializePageData();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _branchCodeController.dispose();
     _branchNameController.dispose();
     _branchAddressController.dispose();
@@ -66,6 +83,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
       await Future.wait([
         _loadBranchData(),
         _loadAdminUsers(),
+        _loadBranchManagers(),
       ]);
     }
     if (mounted) {
@@ -99,29 +117,12 @@ class _BranchEditPageState extends State<BranchEditPage> {
       final branch = await BranchService.getBranchById(widget.branchId);
 
       if (branch != null && mounted) {
-        // Check if admin has permission to edit this branch
-        if (_currentUser?.userRole == UserRole.admin) {
-          // Admin can only edit branches they own
-          if (branch['owner_id'] != _currentUser!.userId) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text('คุณสามารถแก้ไขได้เฉพาะสาขาที่คุณเป็นเจ้าของเท่านั้น'),
-                backgroundColor: Colors.red,
-              ),
-            );
-            Navigator.of(context).pop();
-            return;
-          }
-        }
-
         setState(() {
           _originalBranchData = Map.from(branch);
           _branchCodeController.text = branch['branch_code'] ?? '';
           _branchNameController.text = branch['branch_name'] ?? '';
           _branchAddressController.text = branch['branch_address'] ?? '';
           _branchDescController.text = branch['branch_desc'] ?? '';
-          _selectedOwnerId = branch['owner_id'];
           _isActive = branch['is_active'] ?? true;
           _currentImageUrl = branch['branch_image'];
         });
@@ -141,22 +142,22 @@ class _BranchEditPageState extends State<BranchEditPage> {
   Future<void> _loadAdminUsers() async {
     if (_currentUser == null) return;
 
-    // Only load admin users if user is SuperAdmin (for owner selection)
+    // Only load admin users if user is SuperAdmin
     if (_currentUser!.userRole != UserRole.superAdmin) return;
 
-    setState(() => _isLoadingOwners = true);
+    setState(() => _isLoadingManagers = true);
 
     try {
       final users = await UserService.getAdminUsers();
       if (mounted) {
         setState(() {
           _adminUsers = users;
-          _isLoadingOwners = false;
+          _isLoadingManagers = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingOwners = false);
+        setState(() => _isLoadingManagers = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('ไม่สามารถโหลดรายการผู้ดูแลได้: $e'),
@@ -165,6 +166,63 @@ class _BranchEditPageState extends State<BranchEditPage> {
         );
       }
     }
+  }
+
+  Future<void> _loadBranchManagers() async {
+    try {
+      final managers =
+          await BranchManagerService.getBranchManagers(widget.branchId);
+      if (mounted) {
+        setState(() {
+          _currentManagers = managers;
+          _originalManagers = List.from(managers);
+
+          // Load current selections
+          _selectedManagerIds =
+              managers.map((m) => m['users']['user_id'] as String).toList();
+
+          // Find primary manager
+          final primary = managers.firstWhere(
+            (m) => m['is_primary'] == true,
+            orElse: () => {},
+          );
+          if (primary.isNotEmpty) {
+            _primaryManagerId = primary['users']['user_id'];
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading branch managers: $e');
+    }
+  }
+
+  // Manager selection methods
+  void _toggleManagerSelection(String userId) {
+    setState(() {
+      if (_selectedManagerIds.contains(userId)) {
+        _selectedManagerIds.remove(userId);
+        if (_primaryManagerId == userId) {
+          // หาคนใหม่เป็น primary ถ้ายังมีคนอยู่
+          if (_selectedManagerIds.isNotEmpty) {
+            _primaryManagerId = _selectedManagerIds.first;
+          } else {
+            _primaryManagerId = null;
+          }
+        }
+      } else {
+        _selectedManagerIds.add(userId);
+        // ถ้าเป็นคนแรก ให้เป็น primary
+        if (_selectedManagerIds.length == 1) {
+          _primaryManagerId = userId;
+        }
+      }
+    });
+  }
+
+  void _setPrimaryManager(String userId) {
+    setState(() {
+      _primaryManagerId = userId;
+    });
   }
 
   Future<void> _pickImage() async {
@@ -234,10 +292,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 const SizedBox(height: 20),
                 const Text(
                   'เลือกรูปภาพสาขา',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -254,18 +309,12 @@ class _BranchEditPageState extends State<BranchEditPage> {
                           ),
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.camera_alt,
-                                size: 40,
-                                color: AppTheme.primary,
-                              ),
+                              Icon(Icons.camera_alt,
+                                  size: 40, color: AppTheme.primary),
                               const SizedBox(height: 8),
-                              const Text(
-                                'ถ่ายรูป',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              const Text('ถ่ายรูป',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
@@ -285,18 +334,12 @@ class _BranchEditPageState extends State<BranchEditPage> {
                           ),
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.photo_library,
-                                size: 40,
-                                color: AppTheme.primary,
-                              ),
+                              Icon(Icons.photo_library,
+                                  size: 40, color: AppTheme.primary),
                               const SizedBox(height: 8),
-                              const Text(
-                                'แกลเลอรี่',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              const Text('แกลเลอรี่',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
@@ -309,10 +352,8 @@ class _BranchEditPageState extends State<BranchEditPage> {
                   width: double.infinity,
                   child: TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'ยกเลิก',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
+                    child: Text('ยกเลิก',
+                        style: TextStyle(color: Colors.grey[600])),
                   ),
                 ),
               ],
@@ -500,7 +541,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
       return;
     }
 
-    // Check basic permissions
+    // Check permissions
     if (!_currentUser!.hasAnyPermission([
           DetailedPermission.all,
           DetailedPermission.manageBranches,
@@ -516,23 +557,24 @@ class _BranchEditPageState extends State<BranchEditPage> {
       return;
     }
 
-    // Additional check for admin - must be owner of the branch
-    if (_currentUser!.userRole == UserRole.admin) {
-      if (_originalBranchData?['owner_id'] != _currentUser!.userId) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('คุณสามารถแก้ไขได้เฉพาะสาขาที่คุณเป็นเจ้าของเท่านั้น'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        Navigator.of(context).pop();
-        return;
-      }
+    if (!_formKey.currentState!.validate()) {
+      // Switch to info tab if validation fails
+      _tabController.animateTo(0);
+      return;
     }
 
-    if (!_formKey.currentState!.validate()) {
-      return;
+    // Validate managers (SuperAdmin only)
+    if (_currentUser!.userRole == UserRole.superAdmin) {
+      if (_selectedManagerIds.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('กรุณาเลือกผู้ดูแลอย่างน้อย 1 คน'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        _tabController.animateTo(1);
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -540,6 +582,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
     try {
       String? imageUrl = _currentImageUrl;
 
+      // Handle image upload/deletion
       if (_imageChanged) {
         if (_selectedImage != null || _selectedImageBytes != null) {
           showDialog(
@@ -595,6 +638,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
         }
       }
 
+      // Update branch data
       final branchData = {
         'branch_code': _branchCodeController.text.trim(),
         'branch_name': _branchNameController.text.trim(),
@@ -608,52 +652,39 @@ class _BranchEditPageState extends State<BranchEditPage> {
         'is_active': _isActive,
       };
 
-      // Only include owner_id if user is SuperAdmin
-      if (_currentUser!.userRole == UserRole.superAdmin) {
-        branchData['owner_id'] = _selectedOwnerId;
-      }
-
       final result = await BranchService.updateBranch(
         widget.branchId,
         branchData,
       );
 
+      if (!result['success']) {
+        throw Exception(result['message']);
+      }
+
+      // Update managers if SuperAdmin and changed
+      if (_currentUser!.userRole == UserRole.superAdmin) {
+        await _updateManagers();
+      }
+
       if (mounted) {
         setState(() => _isLoading = false);
 
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(result['message'])),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('อัปเดตสาขาสำเร็จ')),
+              ],
             ),
-          );
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
 
-          Navigator.of(context).pop(true);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(result['message'])),
-                ],
-              ),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -667,6 +698,45 @@ class _BranchEditPageState extends State<BranchEditPage> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _updateManagers() async {
+    // Get original manager IDs
+    final originalIds =
+        _originalManagers.map((m) => m['users']['user_id'] as String).toSet();
+    final newIds = _selectedManagerIds.toSet();
+
+    // Find managers to remove
+    final toRemove = originalIds.difference(newIds);
+    for (String managerId in toRemove) {
+      await BranchManagerService.removeBranchManager(
+        branchId: widget.branchId,
+        userId: managerId,
+      );
+    }
+
+    // Find managers to add
+    final toAdd = newIds.difference(originalIds);
+    for (String managerId in toAdd) {
+      await BranchManagerService.addBranchManager(
+        branchId: widget.branchId,
+        userId: managerId,
+        isPrimary: managerId == _primaryManagerId,
+      );
+    }
+
+    // Update primary manager if changed
+    final originalPrimary = _originalManagers
+        .firstWhere((m) => m['is_primary'] == true, orElse: () => {});
+    final originalPrimaryId =
+        originalPrimary.isNotEmpty ? originalPrimary['users']['user_id'] : null;
+
+    if (_primaryManagerId != null && _primaryManagerId != originalPrimaryId) {
+      await BranchManagerService.setPrimaryManager(
+        branchId: widget.branchId,
+        userId: _primaryManagerId!,
+      );
     }
   }
 
@@ -711,11 +781,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.lock,
-                size: 80,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.lock, size: 80, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
                 _currentUser == null
@@ -732,10 +798,7 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 _currentUser == null
                     ? 'คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถแก้ไขสาขาได้'
                     : 'เฉพาะ SuperAdmin และ Admin เท่านั้นที่สามารถแก้ไขสาขาได้',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -744,10 +807,8 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
                 child: const Text('กลับ'),
               ),
@@ -763,6 +824,18 @@ class _BranchEditPageState extends State<BranchEditPage> {
         backgroundColor: AppTheme.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        bottom: _currentUser!.userRole == UserRole.superAdmin
+            ? TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                tabs: const [
+                  Tab(icon: Icon(Icons.info), text: 'ข้อมูลสาขา'),
+                  Tab(icon: Icon(Icons.people), text: 'ผู้ดูแล'),
+                ],
+              )
+            : null,
       ),
       body: _isLoading
           ? Center(
@@ -775,31 +848,412 @@ class _BranchEditPageState extends State<BranchEditPage> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildImageSection(),
-                    const SizedBox(height: 24),
-                    _buildBasicInfoSection(),
-                    const SizedBox(height: 24),
-                    _buildOwnerSection(),
-                    const SizedBox(height: 24),
-                    _buildDescriptionSection(),
-                    const SizedBox(height: 24),
-                    _buildStatusSection(),
-                    const SizedBox(height: 32),
-                    _buildUpdateButton(),
-                  ],
-                ),
-              ),
+          : Form(
+              key: _formKey,
+              child: _currentUser!.userRole == UserRole.superAdmin
+                  ? TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildBranchInfoTab(),
+                        _buildManagersTab(),
+                      ],
+                    )
+                  : _buildBranchInfoTab(),
             ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: _buildNavigationButtons(),
+      ),
     );
   }
 
+  Widget _buildBranchInfoTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildImageSection(),
+          const SizedBox(height: 24),
+          _buildBasicInfoSection(),
+          const SizedBox(height: 24),
+          _buildDescriptionSection(),
+          const SizedBox(height: 24),
+          _buildStatusSection(),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagersTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.people, color: AppTheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'จัดการผู้ดูแลสาขา',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'แก้ไขได้',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'เลือกผู้ดูแลอย่างน้อย 1 คน (สามารถเลือกได้หลายคน)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  if (_selectedManagerIds.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle,
+                              color: Colors.green.shade600, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'เลือกแล้ว ${_selectedManagerIds.length} คน',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (_isLoadingManagers)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child:
+                            CircularProgressIndicator(color: AppTheme.primary),
+                      ),
+                    )
+                  else if (_adminUsers.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade600),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ไม่พบรายการผู้ดูแล',
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'ต้องมี Admin หรือ SuperAdmin ในระบบก่อนจึงจะจัดการได้',
+                                  style: TextStyle(
+                                    color: Colors.red.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    _buildManagersList(),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagersList() {
+    return Column(
+      children: _adminUsers.map((user) {
+        final userId = user['user_id'];
+        final isSelected = _selectedManagerIds.contains(userId);
+        final isPrimary = _primaryManagerId == userId;
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: isSelected ? 3 : 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSelected ? AppTheme.primary : Colors.grey.shade300,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: InkWell(
+            onTap: () => _toggleManagerSelection(userId),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Checkbox
+                  Checkbox(
+                    value: isSelected,
+                    onChanged: (value) => _toggleManagerSelection(userId),
+                    activeColor: AppTheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  // User info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                user['user_name'] ?? 'ไม่มีชื่อ',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: isSelected
+                                      ? AppTheme.primary
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            if (isPrimary)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.star,
+                                        size: 14, color: Colors.amber.shade700),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'หลัก',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.amber.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${user['role'] == 'superadmin' ? 'SuperAdmin' : 'Admin'} • ${user['user_email'] ?? 'ไม่มีอีเมล'}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Primary button
+                  if (isSelected && !isPrimary)
+                    IconButton(
+                      icon:
+                          Icon(Icons.star_border, color: Colors.grey.shade400),
+                      onPressed: () => _setPrimaryManager(userId),
+                      tooltip: 'ตั้งเป็นผู้ดูแลหลัก',
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    final bool canSave = !_isLoading && !_isLoadingManagers;
+    final bool isSuperAdmin = _currentUser?.userRole == UserRole.superAdmin;
+
+    if (!isSuperAdmin) {
+      // Simple save button for non-SuperAdmin
+      return SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: ElevatedButton.icon(
+          onPressed: canSave ? _updateBranch : null,
+          icon: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(Icons.save, color: Colors.white),
+          label: Text(
+            _isLoading ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: canSave ? AppTheme.primary : Colors.grey,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: canSave ? 2 : 0,
+          ),
+        ),
+      );
+    }
+
+    // Navigation buttons for SuperAdmin with tabs
+    return Row(
+      children: [
+        if (_currentTabIndex > 0)
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _isLoading
+                  ? null
+                  : () => _tabController.animateTo(_currentTabIndex - 1),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('ก่อนหน้า'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                side: BorderSide(color: AppTheme.primary),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+        if (_currentTabIndex > 0) const SizedBox(width: 12),
+        Expanded(
+          flex: _currentTabIndex == 0 ? 1 : 2,
+          child: _currentTabIndex < 1
+              ? ElevatedButton.icon(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _tabController.animateTo(_currentTabIndex + 1),
+                  icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                  label: const Text(
+                    'ถัดไป',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                )
+              : ElevatedButton.icon(
+                  onPressed: canSave ? _updateBranch : null,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.save, color: Colors.white),
+                  label: Text(
+                    _isLoading ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canSave ? AppTheme.primary : Colors.grey,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: canSave ? 2 : 0,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  // Section builders (same as before)
   Widget _buildImageSection() {
     return Card(
       elevation: 2,
@@ -1205,267 +1659,6 @@ class _BranchEditPageState extends State<BranchEditPage> {
     );
   }
 
-  Widget _buildOwnerSection() {
-    // Check if user can edit owner - only SuperAdmin can edit owner
-    final bool canEditOwner = _currentUser?.userRole == UserRole.superAdmin;
-
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.person_outline, color: AppTheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'เจ้าของสาขา',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: canEditOwner
-                        ? Colors.orange.shade100
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    canEditOwner ? 'ไม่บังคับ' : 'อ่านอย่างเดียว',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: canEditOwner
-                          ? Colors.orange.shade700
-                          : Colors.grey.shade600,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (!canEditOwner) ...[
-              // Show current owner information (read-only for admin)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings,
-                            color: Colors.grey.shade600),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (_originalBranchData?['owner_name'] !=
-                                  null) ...[
-                                Text(
-                                  _originalBranchData!['owner_name'],
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'เจ้าของสาขาปัจจุบัน',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ] else ...[
-                                Text(
-                                  'ไม่ได้ระบุเจ้าของสาขา',
-                                  style: TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Admin เท่านั้น',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.blue.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: Colors.blue.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'เฉพาะ SuperAdmin เท่านั้นที่สามารถเปลี่ยนเจ้าของสาขาได้',
-                        style: TextStyle(
-                          color: Colors.blue.shade700,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              // Dropdown for SuperAdmin to change owner
-              if (_isLoadingOwners)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary),
-                  ),
-                )
-              else
-                DropdownButtonFormField<String>(
-                  value: _selectedOwnerId,
-                  decoration: InputDecoration(
-                    labelText: 'เลือกเจ้าของสาขา',
-                    hintText: 'เลือกผู้ดูแลเป็นเจ้าของสาขา (ไม่บังคับ)',
-                    prefixIcon: const Icon(Icons.admin_panel_settings),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: Color(0xff10B981), width: 2),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: Colors.grey[300]!, width: 1),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
-                  isExpanded: true,
-                  isDense: false, // ให้มีพื้นที่มากขึ้น
-                  menuMaxHeight: 300, // จำกัดความสูงของ dropdown menu
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null,
-                      child: Text('ไม่ระบุเจ้าของสาขา'),
-                    ),
-                    ..._adminUsers.map((user) {
-                      return DropdownMenuItem<String>(
-                        value: user['user_id'],
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                user['user_name'] ?? 'ไม่มีชื่อ',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              Text(
-                                '${user['role'] == 'superadmin' ? 'SuperAdmin' : 'Admin'} • ${user['user_email'] ?? 'ไม่มีอีเมล'}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedOwnerId = value;
-                    });
-                  },
-                ),
-              if (_adminUsers.isEmpty && !_isLoadingOwners)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_outlined,
-                          color: Colors.orange.shade600),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ไม่พบรายการผู้ดูแล',
-                              style: TextStyle(
-                                color: Colors.orange.shade700,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'ไม่สามารถเลือกเจ้าของสาขาได้ในขณะนี้',
-                              style: TextStyle(
-                                color: Colors.orange.shade600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildDescriptionSection() {
     return Card(
       elevation: 2,
@@ -1564,43 +1757,6 @@ class _BranchEditPageState extends State<BranchEditPage> {
               contentPadding: EdgeInsets.zero,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUpdateButton() {
-    final bool canSave = !_isLoading && !_isLoadingOwners;
-
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton.icon(
-        onPressed: canSave ? _updateBranch : null,
-        icon: _isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Icon(Icons.save, color: Colors.white),
-        label: Text(
-          _isLoading ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: canSave ? AppTheme.primary : Colors.grey,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          elevation: canSave ? 2 : 0,
         ),
       ),
     );

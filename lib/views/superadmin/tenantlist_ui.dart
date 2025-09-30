@@ -115,7 +115,7 @@ class _TenantListUIState extends State<TenantListUI> {
           _tenants = [];
           _filteredTenants = [];
         });
-
+        print('เกิดข้อผิดพลาดในการโหลดข้อมูล ${e.toString()}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('เกิดข้อผิดพลาดในการโหลดข้อมูล: ${e.toString()}'),
@@ -518,36 +518,78 @@ class _TenantListUIState extends State<TenantListUI> {
                 if (_branches.isNotEmpty && widget.branchId == null) ...[
                   const SizedBox(height: 12),
                   Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: // ใน dropdown filter ของสาขา
-                          DropdownButton<String>(
-                        value: _selectedBranchId ?? 'all',
-                        isExpanded: true,
-                        underline: const SizedBox(),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: 'all',
-                            child: Text('ทุกสาขา'),
-                          ),
-                          const DropdownMenuItem<String>(
-                            value: 'null',
-                            child: Text('ยังไม่ระบุสาขา'),
-                          ),
-                          ..._branches.map((branch) {
-                            return DropdownMenuItem<String>(
-                              value: branch['branch_id'] as String,
-                              child: Text(branch['branch_name'] ?? ''),
-                            );
-                          }).toList(),
-                        ],
-                        onChanged: (value) {
-                          _onBranchChanged(value == 'all' ? null : value);
-                        },
-                      )),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButton<String>(
+                      value: _selectedBranchId ?? 'all',
+                      isExpanded: true,
+                      underline: const SizedBox(),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: 'all',
+                          child: Text('ทุกสาขา'),
+                        ),
+                        const DropdownMenuItem<String>(
+                          value: 'null',
+                          child: Text('ยังไม่ระบุสาขา'),
+                        ),
+                        ..._branches.map((branch) {
+                          return DropdownMenuItem<String>(
+                            value: branch['branch_id'] as String,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    branch['branch_name'] ?? '',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                // แสดงจำนวนผู้ดูแล (ถ้ามี)
+                                if (branch['manager_count'] != null &&
+                                    branch['manager_count'] > 0)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.people,
+                                          size: 10,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          '${branch['manager_count']}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.blue.shade700,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (value) {
+                        _onBranchChanged(value == 'all' ? null : value);
+                      },
+                    ),
+                  ),
                 ],
                 if (_selectedBranchId != null ||
                     _selectedStatus != 'all' ||
@@ -858,7 +900,7 @@ class _TenantListUIState extends State<TenantListUI> {
               ),
               const SizedBox(height: 6),
 
-              // แสดงสาขา
+              // แสดงสาขา พร้อมข้อมูลผู้ดูแล
               Row(
                 children: [
                   Icon(
@@ -868,17 +910,59 @@ class _TenantListUIState extends State<TenantListUI> {
                   ),
                   const SizedBox(width: 4),
                   Expanded(
-                    child: Text(
-                      branchName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            hasBranch ? Colors.grey[600] : Colors.orange[600],
-                        fontStyle:
-                            hasBranch ? FontStyle.normal : FontStyle.italic,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            branchName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: hasBranch
+                                  ? Colors.grey[600]
+                                  : Colors.orange[600],
+                              fontStyle: hasBranch
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // แสดงจำนวนผู้ดูแลสาขา (ถ้ามี)
+                        if (hasBranch &&
+                            tenant['branch_manager_count'] != null &&
+                            tenant['branch_manager_count'] > 0)
+                          Container(
+                            margin: const EdgeInsets.only(left: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.people,
+                                  size: 8,
+                                  color: Colors.blue.shade700,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '${tenant['branch_manager_count']}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.blue.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/branch_service.dart';
+import '../../services/branch_manager_service.dart';
 import '../../widgets/colors.dart';
 import 'branch_edit_ui.dart';
 
@@ -24,8 +24,10 @@ class _BranchListDetailState extends State<BranchListDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  List<Map<String, dynamic>> _branchManagers = [];
   Map<String, dynamic>? _branchData;
   Map<String, dynamic> _branchStats = {};
+  bool _isLoadingManagers = false;
   bool _isLoading = true;
   UserModel? _currentUser;
   bool _isAnonymous = false;
@@ -59,6 +61,25 @@ class _BranchListDetailState extends State<BranchListDetail>
     _loadBranchDetails();
   }
 
+  Future<void> _loadBranchManagers() async {
+    setState(() => _isLoadingManagers = true);
+    try {
+      final managers =
+          await BranchManagerService.getBranchManagers(widget.branchId);
+      if (mounted) {
+        setState(() {
+          _branchManagers = managers;
+          _isLoadingManagers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingManagers = false);
+      }
+      print('Error loading managers: $e');
+    }
+  }
+
   Future<void> _loadBranchDetails() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -66,6 +87,7 @@ class _BranchListDetailState extends State<BranchListDetail>
     try {
       final branchData = await BranchService.getBranchById(widget.branchId);
       final stats = await BranchService.getBranchStatistics(widget.branchId);
+      await _loadBranchManagers(); // เพิ่มบรรทัดนี้
 
       if (mounted) {
         setState(() {
@@ -505,11 +527,107 @@ class _BranchListDetailState extends State<BranchListDetail>
             ),
             SizedBox(height: 16),
             _buildInfoCard(
-              'ข้อมูลเจ้าของ',
-              Icons.person_outline,
+              'ข้อมูลผู้ดูแล',
+              Icons.people_outline,
               [
-                _buildInfoRow(
-                    'ชื่อเจ้าของ', _branchData!['owner_name'] ?? 'ไม่ระบุ'),
+                if (_isLoadingManagers)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppTheme.primary),
+                    ),
+                  )
+                else if (_branchManagers.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'ยังไม่มีผู้ดูแลสาขา',
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  )
+                else
+                  ..._branchManagers.map((manager) {
+                    final userData = manager['users'] as Map<String, dynamic>;
+                    final isPrimary = manager['is_primary'] == true;
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isPrimary
+                            ? Colors.blue.shade50
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isPrimary
+                              ? Colors.blue.shade200
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: isPrimary
+                                  ? Colors.blue.shade200
+                                  : Colors.grey.shade300,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              color: isPrimary
+                                  ? Colors.blue.shade700
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  userData['user_name'] ?? 'ไม่มีชื่อ',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  userData['user_email'] ?? 'ไม่มีอีเมล',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isPrimary)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'ผู้ดูแลหลัก',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
               ],
             ),
             if (_branchData!['branch_desc'] != null &&
