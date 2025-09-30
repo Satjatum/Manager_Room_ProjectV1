@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:manager_room_project/views/admin/admindash_ui.dart';
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
+import 'package:manager_room_project/views/superadmin/issuelist_ui.dart';
+import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
@@ -90,14 +93,9 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'สาขา',
       ),
       NavItem(
-        icon: Icons.people_outline,
-        activeIcon: Icons.people,
-        label: 'ผู้ใช้',
-      ),
-      NavItem(
         icon: Icons.analytics_outlined,
         activeIcon: Icons.analytics,
-        label: 'รายงาน',
+        label: 'ปัญหา',
       ),
       NavItem(
         icon: Icons.settings_outlined,
@@ -109,8 +107,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
     _pages = [
       const SuperadmindashUi(), // Dashboard
       const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
-      const TenantAddUI(), // Users - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
+      const IssuesListScreen(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
       const SettingUi(), // Settings
     ];
   }
@@ -145,9 +142,9 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const SuperadmindashUi(), // Admin Dashboard - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Rooms - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Tenants - ใส่ page ที่ถูกต้องตรงนี้
+      const AdmindashUi(), // Admin Dashboard - ใส่ page ที่ถูกต้องตรงนี้
+      const BranchlistUi(), // Rooms - ใส่ page ที่ถูกต้องตรงนี้
+      const RoomListUI(), // Tenants - ใส่ page ที่ถูกต้องตรงนี้
       const SuperadmindashUi(), // Financial - ใส่ page ที่ถูกต้องตรงนี้
       const SettingUi(), // Settings
     ];
@@ -215,7 +212,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const TenantdashUi(), // Tenant Home - ใส่ page ที่ถูกต้องตรงนี้
+      const TenantdashUi(),
+      const TenantdashUi(),
+      const TenantdashUi(),
+      const IssuesListScreen(),
+      const SettingUi(),
     ];
   }
 

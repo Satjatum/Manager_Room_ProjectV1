@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenant_edit_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_detail_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
@@ -999,7 +1000,19 @@ class _TenantListUIState extends State<TenantListUI> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // TODO: Navigate to edit page
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TenantEditUI(
+                                tenantId: tenantId,
+                                tenantData: tenant,
+                              ),
+                            ),
+                          ).then((result) {
+                            if (result == true && mounted) {
+                              _loadTenants();
+                            }
+                          });
                         },
                         icon: const Icon(Icons.edit, size: 16),
                         label:
