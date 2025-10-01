@@ -4,7 +4,6 @@ import 'package:manager_room_project/views/admin/admindash_ui.dart';
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/issuelist_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
 import '../middleware/auth_middleware.dart';
@@ -16,10 +15,7 @@ import '../views/superadmin/superadmindash_ui.dart';
 class AppBottomNav extends StatefulWidget {
   final int currentIndex;
 
-  const AppBottomNav({
-    Key? key,
-    this.currentIndex = 0,
-  }) : super(key: key);
+  const AppBottomNav({Key? key, this.currentIndex = 0}) : super(key: key);
 
   @override
   State<AppBottomNav> createState() => _AppBottomNavState();
@@ -251,9 +247,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
         height: 70,
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(
-            top: BorderSide(color: Colors.grey, width: 0.2),
-          ),
+          border: Border(top: BorderSide(color: Colors.grey, width: 0.2)),
         ),
         child: const Center(
           child: SizedBox(
@@ -275,9 +269,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey, width: 0.2),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey, width: 0.2)),
       ),
       child: SafeArea(
         child: Container(
@@ -339,9 +331,5 @@ class NavItem {
   final IconData activeIcon;
   final String label;
 
-  NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-  });
+  NavItem({required this.icon, required this.activeIcon, required this.label});
 }

@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
 import 'login_ui.dart';
+import '../views/superadmin/user_management_ui.dart';
 
 class SettingUi extends StatefulWidget {
   const SettingUi({Key? key}) : super(key: key);
@@ -183,7 +184,7 @@ class _SettingUiState extends State<SettingUi> {
           );
 
           if (result['success']) {
-            _loadUserData(); // Refresh data
+            _loadUserData();
           }
         }
       } catch (e) {
@@ -212,7 +213,7 @@ class _SettingUiState extends State<SettingUi> {
       return Scaffold(
         appBar: AppBar(title: const Text('ตั้งค่า')),
         body: const Center(child: Text('ไม่สามารถโหลดข้อมูลผู้ใช้ได้')),
-        bottomNavigationBar: const AppBottomNav(currentIndex: 1),
+        bottomNavigationBar: const AppBottomNav(currentIndex: 4),
       );
     }
 
@@ -270,23 +271,17 @@ class _SettingUiState extends State<SettingUi> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // User Name
                     Text(
                       currentUser!.displayName,
                       style: const TextStyle(
                           fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-
-                    // User Email
                     Text(
                       currentUser!.userEmail,
                       style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 8),
-
-                    // User Role and Permission
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -311,10 +306,7 @@ class _SettingUiState extends State<SettingUi> {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 12),
-
-                    // Last Login Info
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
@@ -375,7 +367,7 @@ class _SettingUiState extends State<SettingUi> {
                         spacing: 8,
                         runSpacing: 8,
                         children: currentUser!.detailedPermissionStrings
-                            .take(6) // Show max 6 permissions
+                            .take(6)
                             .map((permission) => Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
@@ -414,6 +406,36 @@ class _SettingUiState extends State<SettingUi> {
               ),
 
             const SizedBox(height: 20),
+
+            // Admin Management Section (Only for SuperAdmin)
+            if (currentUser!.userRole == UserRole.superAdmin)
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.admin_panel_settings,
+                          color: Colors.purple[600]),
+                      title: const Text('จัดการผู้ใช้งาน'),
+                      subtitle: const Text('เพิ่ม แก้ไข และจัดการผู้ใช้ระบบ'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const UserManagementUi(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+            if (currentUser!.userRole == UserRole.superAdmin)
+              const SizedBox(height: 20),
 
             // Session Management Card
             Card(
@@ -481,8 +503,6 @@ class _SettingUiState extends State<SettingUi> {
                       const SizedBox(height: 12),
                       ...loginHistory.take(3).map((session) {
                         final createdAt = DateTime.parse(session['created_at']);
-                        final lastActivity =
-                            DateTime.parse(session['last_activity']);
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(8),
