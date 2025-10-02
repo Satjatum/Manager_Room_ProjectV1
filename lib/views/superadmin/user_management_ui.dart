@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:manager_room_project/widgets/colors.dart';
 import '../../models/user_models.dart';
 import '../../services/user_service.dart';
 
@@ -14,7 +15,7 @@ class _UserManagementUiState extends State<UserManagementUi> {
   bool isLoading = true;
   String? errorMessage;
   String searchQuery = '';
-  String? roleFilter;
+  // String? roleFilter; // เก็บไว้สำหรับอนาคต
 
   @override
   void initState() {
@@ -31,7 +32,7 @@ class _UserManagementUiState extends State<UserManagementUi> {
     try {
       final result = await UserService.getAllUsers(
         searchQuery: searchQuery.isEmpty ? null : searchQuery,
-        roleFilter: roleFilter,
+        roleFilter: 'admin',
       );
 
       if (mounted) {
@@ -110,17 +111,12 @@ class _UserManagementUiState extends State<UserManagementUi> {
     }
   }
 
-  // Helper method to parse role from string
   UserRole _parseRole(String roleStr) {
     switch (roleStr.toLowerCase()) {
       case 'superadmin':
         return UserRole.superAdmin;
       case 'admin':
         return UserRole.admin;
-      case 'user':
-        return UserRole.user;
-      case 'tenant':
-        return UserRole.tenant;
       default:
         return UserRole.user;
     }
@@ -130,70 +126,59 @@ class _UserManagementUiState extends State<UserManagementUi> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('จัดการผู้ใช้งาน'),
+        title: const Text('จัดการผู้ดูแลสาขา'),
         backgroundColor: const Color(0xff10B981),
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // Search and Filter Section
-          Padding(
+          // Search Section
+          Container(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Search Bar
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'ค้นหาชื่อผู้ใช้หรืออีเมล',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onChanged: (value) {
-                    setState(() => searchQuery = value);
-                    _loadUsers();
-                  },
-                ),
-                const SizedBox(height: 12),
-                // Role Filter
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: InputDecoration(
-                          labelText: 'กรองตามบทบาท',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        value: roleFilter,
-                        items: const [
-                          DropdownMenuItem(value: null, child: Text('ทั้งหมด')),
-                          DropdownMenuItem(
-                              value: 'superadmin',
-                              child: Text('ผู้ดูแลระบบหลัก')),
-                          DropdownMenuItem(
-                              value: 'admin', child: Text('ผู้ดูแลระบบ')),
-                          DropdownMenuItem(
-                              value: 'user', child: Text('ผู้ใช้งาน')),
-                          DropdownMenuItem(
-                              value: 'tenant', child: Text('ผู้เช่า')),
-                        ],
-                        onChanged: (value) {
-                          setState(() => roleFilter = value);
-                          _loadUsers();
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: _loadUsers,
-                    ),
-                  ],
+            decoration: BoxDecoration(
+              color: AppTheme.primary,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
                 ),
               ],
+            ),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'ค้นหาชื่อผู้ใช้หรืออีเมล',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xff10B981), width: 2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
+                suffixIcon: searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear, color: Colors.grey[700]),
+                        onPressed: () {
+                          setState(() {
+                            searchQuery = '';
+                          });
+                          _loadUsers();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              onChanged: (value) {
+                setState(() => searchQuery = value);
+                _loadUsers();
+              },
             ),
           ),
 
@@ -216,7 +201,7 @@ class _UserManagementUiState extends State<UserManagementUi> {
                         ),
                       )
                     : users.isEmpty
-                        ? const Center(child: Text('ไม่พบข้อมูลผู้ใช้'))
+                        ? const Center(child: Text('ไม่พบข้อมูลผู้ดูแลสาขา'))
                         : ListView.builder(
                             itemCount: users.length,
                             itemBuilder: (context, index) {
@@ -229,9 +214,9 @@ class _UserManagementUiState extends State<UserManagementUi> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddUserDialog,
-        icon: const Icon(Icons.person_add),
-        label: const Text('เพิ่มผู้ใช้'),
         backgroundColor: const Color(0xff10B981),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(''),
       ),
     );
   }
@@ -321,7 +306,7 @@ class _UserManagementUiState extends State<UserManagementUi> {
       case UserRole.superAdmin:
         return 'ผู้ดูแลระบบหลัก';
       case UserRole.admin:
-        return 'ผู้ดูแลระบบ';
+        return 'ผู้ดูแลสาขา';
       case UserRole.user:
         return 'ผู้ใช้งาน';
       case UserRole.tenant:
@@ -356,7 +341,7 @@ class _AddUserDialogState extends State<AddUserDialog> {
   final _userNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String _selectedRole = 'user';
+  String _selectedRole = 'admin';
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -398,110 +383,264 @@ class _AddUserDialogState extends State<AddUserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('เพิ่มผู้ใช้ใหม่'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _userNameController,
-                decoration: const InputDecoration(
-                  labelText: 'ชื่อผู้ใช้',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'กรุณากรอกชื่อผู้ใช้';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'อีเมล',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'กรุณากรอกอีเมล';
-                  }
-                  if (!value.contains('@')) {
-                    return 'รูปแบบอีเมลไม่ถูกต้อง';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'รหัสผ่าน',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword
-                        ? Icons.visibility
-                        : Icons.visibility_off),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xff10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.person_add,
+                          color: Color(0xff10B981),
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'เพิ่มผู้ดูแลสาขา',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'กรอกข้อมูลผู้ดูแลสาขาใหม่',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'กรุณากรอกรหัสผ่าน';
-                  }
-                  if (value.length < 6) {
-                    return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'บทบาท',
-                  prefixIcon: Icon(Icons.shield),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'admin', child: Text('ผู้ดูแลระบบ')),
-                  DropdownMenuItem(value: 'user', child: Text('ผู้ใช้งาน')),
+                  const SizedBox(height: 24),
+
+                  // Username Field
+                  TextFormField(
+                    controller: _userNameController,
+                    decoration: InputDecoration(
+                      labelText: 'ชื่อผู้ใช้',
+                      hintText: 'กรอกชื่อผู้ใช้',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'กรุณากรอกชื่อผู้ใช้';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email Field
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'อีเมล',
+                      hintText: 'example@email.com',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'กรุณากรอกอีเมล';
+                      }
+                      if (!value.contains('@')) {
+                        return 'รูปแบบอีเมลไม่ถูกต้อง';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password Field
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'รหัสผ่าน',
+                      hintText: 'กรอกรหัสผ่าน',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    obscureText: _obscurePassword,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'กรุณากรอกรหัสผ่าน';
+                      }
+                      if (value.length < 6) {
+                        return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Role Field (Hidden - Always Admin)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield, color: Colors.blue.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'บทบาท',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'ผู้ดูแลสาขา',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.blue.shade900,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Actions
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: const Text('ยกเลิก'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _submitForm,
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.add),
+                        label: const Text('เพิ่มผู้ดูแลสาขา'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedRole = value);
-                  }
-                },
               ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
-          child: const Text('ยกเลิก'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _submitForm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xff10B981),
-          ),
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('เพิ่มผู้ใช้'),
-        ),
-      ],
     );
   }
 }
@@ -577,108 +716,261 @@ class _EditUserDialogState extends State<EditUserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('แก้ไขข้อมูลผู้ใช้'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _userNameController,
-                decoration: const InputDecoration(
-                  labelText: 'ชื่อผู้ใช้',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'กรุณากรอกชื่อผู้ใช้';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'อีเมล',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'กรุณากรอกอีเมล';
-                  }
-                  if (!value.contains('@')) {
-                    return 'รูปแบบอีเมลไม่ถูกต้อง';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'รหัสผ่านใหม่ (ไม่บังคับ)',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword
-                        ? Icons.visibility
-                        : Icons.visibility_off),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          color: Colors.blue,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'แก้ไขข้อมูลผู้ดูแลสาขา',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'อัปเดตข้อมูลผู้ดูแลสาขา',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  helperText: 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน',
-                ),
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value != null && value.isNotEmpty && value.length < 6) {
-                    return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'บทบาท',
-                  prefixIcon: Icon(Icons.shield),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'admin', child: Text('ผู้ดูแลระบบ')),
-                  DropdownMenuItem(value: 'user', child: Text('ผู้ใช้งาน')),
+                  const SizedBox(height: 24),
+
+                  // Username Field
+                  TextFormField(
+                    controller: _userNameController,
+                    decoration: InputDecoration(
+                      labelText: 'ชื่อผู้ใช้',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'กรุณากรอกชื่อผู้ใช้';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email Field
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'อีเมล',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'กรุณากรอกอีเมล';
+                      }
+                      if (!value.contains('@')) {
+                        return 'รูปแบบอีเมลไม่ถูกต้อง';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password Field
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'รหัสผ่านใหม่ (ไม่บังคับ)',
+                      hintText: 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    obscureText: _obscurePassword,
+                    validator: (value) {
+                      if (value != null &&
+                          value.isNotEmpty &&
+                          value.length < 6) {
+                        return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Role Field (Fixed - Always Admin)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield, color: Colors.blue.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'บทบาท',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'ผู้ดูแลสาขา',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.blue.shade900,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Actions
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: const Text('ยกเลิก'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _submitForm,
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: const Text('บันทึกการเปลี่ยนแปลง'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedRole = value);
-                  }
-                },
               ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
-          child: const Text('ยกเลิก'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _submitForm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xff10B981),
-          ),
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('บันทึก'),
-        ),
-      ],
     );
   }
 }

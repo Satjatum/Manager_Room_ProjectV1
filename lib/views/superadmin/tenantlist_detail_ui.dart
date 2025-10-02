@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:manager_room_project/views/superadmin/contract_add_ui.dart';
+import 'package:manager_room_project/views/superadmin/contract_edit_ui.dart';
+import 'package:manager_room_project/views/superadmin/contractlist_detail_ui.dart';
+import 'package:manager_room_project/views/superadmin/contractlist_ui.dart';
 import '../../services/tenant_service.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../models/user_models.dart';
@@ -535,8 +539,6 @@ class _TenantDetailUIState extends State<TenantDetailUI> {
 
   Widget _buildContractInfo() {
     final activeContract = _statistics?['active_contract'];
-    final currentRoom = _statistics?['current_room'];
-    final currentBranch = _statistics?['current_branch'];
     final totalContracts = _statistics?['total_contracts'] ?? 0;
 
     return Padding(
@@ -548,80 +550,266 @@ class _TenantDetailUIState extends State<TenantDetailUI> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header พร้อมปุ่มดูทั้งหมด
               Row(
                 children: [
                   Icon(Icons.description, color: AppTheme.primary),
                   const SizedBox(width: 8),
-                  Text(
-                    'ข้อมูลสัญญาเช่า',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primary,
+                  Expanded(
+                    child: Text(
+                      'ข้อมูลสัญญาเช่า',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primary,
+                      ),
                     ),
                   ),
+                  // ปุ่มดูสัญญาทั้งหมด - แสดงเสมอถ้ามีสิทธิ์
+                  if (_currentUser != null &&
+                      _currentUser!.hasAnyPermission([
+                        DetailedPermission.all,
+                        DetailedPermission.manageContracts,
+                        DetailedPermission.viewContracts,
+                      ]))
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            // ไปหน้ารายการสัญญาของผู้เช่านี้
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ContractListUI(
+                                  tenantId: widget.tenantId,
+                                  tenantName: _tenantData?['tenant_fullname'],
+                                ),
+                              ),
+                            ).then((_) => _loadData());
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.list_alt,
+                                  size: 18,
+                                  color: AppTheme.primary,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'ดูทั้งหมด',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                                if (totalContracts > 0) ...[
+                                  SizedBox(width: 4),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primary,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '$totalContracts',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 16),
+
+              // แสดงข้อมูลสัญญาปัจจุบัน
               if (activeContract != null) ...[
-                _buildInfoRow(
-                  icon: Icons.home,
-                  label: 'ห้องปัจจุบัน',
-                  value: currentRoom ?? '-',
-                ),
-                const Divider(height: 24),
-                _buildInfoRow(
-                  icon: Icons.business,
-                  label: 'สาขา',
-                  value: currentBranch ?? '-',
-                ),
-                const Divider(height: 24),
-                _buildInfoRow(
-                  icon: Icons.calendar_today,
-                  label: 'วันที่เริ่มสัญญา',
-                  value: _formatDate(activeContract['start_date']),
-                ),
-                const Divider(height: 24),
-                _buildInfoRow(
-                  icon: Icons.event_busy,
-                  label: 'วันที่สิ้นสุดสัญญา',
-                  value: _formatDate(activeContract['end_date']),
-                ),
-                const Divider(height: 24),
-                _buildInfoRow(
-                  icon: Icons.attach_money,
-                  label: 'ค่าเช่า',
-                  value:
-                      '฿${activeContract['contract_price']?.toStringAsFixed(0) ?? '0'}',
-                ),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange.shade600),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'ไม่มีสัญญาเช่าที่ใช้งานอยู่',
-                          style: TextStyle(fontSize: 13),
+                // ปุ่มจัดการสัญญาปัจจุบัน
+                Row(
+                  children: [
+                    // ปุ่มดูสัญญา
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ContractDetailUI(
+                                contractId: activeContract['contract_id'],
+                              ),
+                            ),
+                          ).then((_) => _loadData());
+                        },
+                        icon: Icon(Icons.visibility, size: 18),
+                        label: Text('ดูสัญญา'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.primary,
+                          side: BorderSide(color: AppTheme.primary),
+                          padding: EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
+                    ),
+                    // ปุ่มแก้ไข (เฉพาะผู้ที่มีสิทธิ์)
+                    if (_currentUser != null &&
+                        _currentUser!.hasAnyPermission([
+                          DetailedPermission.all,
+                          DetailedPermission.manageContracts,
+                        ])) ...[
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ContractEditUI(
+                                  contractId: activeContract['contract_id'],
+                                ),
+                              ),
+                            ).then((_) => _loadData());
+                          },
+                          icon: Icon(Icons.edit, size: 18),
+                          label: Text('แก้ไข'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ] else ...[
+                // กรณีไม่มีสัญญาที่ใช้งานอยู่
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange.shade700,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'ไม่มีสัญญาเช่าที่ใช้งานอยู่',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.orange.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // ปุ่มสร้างสัญญาใหม่
+                      if (_currentUser != null &&
+                          _currentUser!.hasAnyPermission([
+                            DetailedPermission.all,
+                            DetailedPermission.manageContracts,
+                          ])) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ContractAddUI(
+                                    tenantId: widget.tenantId,
+                                    tenantData: _tenantData,
+                                  ),
+                                ),
+                              ).then((_) => _loadData());
+                            },
+                            icon: Icon(Icons.add_circle_outline, size: 20),
+                            label: Text(
+                              'สร้างสัญญาใหม่',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              elevation: 2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
+
+              // แสดงจำนวนสัญญาทั้งหมด
               if (totalContracts > 0) ...[
                 const Divider(height: 24),
-                _buildInfoRow(
-                  icon: Icons.history,
-                  label: 'จำนวนสัญญาทั้งหมด',
-                  value: '$totalContracts สัญญา',
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.history,
+                          color: Colors.blue.shade700, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'ประวัติสัญญา: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                      Text(
+                        '$totalContracts สัญญา',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],

@@ -1,12 +1,12 @@
 -- ============================================
--- SUPABASE SCHEMA FOR RENTAL MANAGEMENT APP (UPDATED)
+-- SUPABASE SCHEMA FOR RENTAL MANAGEMENT APP (UPDATED V2)
 -- ============================================
 
 -- Enable extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================
--- 1) CUSTOM AUTH - ระบบผู้ใช้งาน (UPDATED)
+-- 1) CUSTOM AUTH - ระบบผู้ใช้งาน
 -- ============================================
 
 CREATE TABLE public.users (
@@ -15,28 +15,28 @@ CREATE TABLE public.users (
   user_email     varchar(255) UNIQUE NOT NULL,
   user_pass      text         NOT NULL,
   role           varchar(20)  NOT NULL CHECK (role IN ('superadmin','admin','user','tenant')),
-  permissions    jsonb        NOT NULL DEFAULT '[]'::jsonb, -- New field for detailed permissions
-  last_login     timestamptz, -- New field for last login tracking
+  permissions    jsonb        NOT NULL DEFAULT '[]'::jsonb,
+  last_login     timestamptz,
   is_active      boolean      NOT NULL DEFAULT true,
   created_by     uuid REFERENCES public.users(user_id),
   created_at     timestamptz  NOT NULL DEFAULT now(),
   updated_at     timestamptz  NOT NULL DEFAULT now()
 );
 
--- Session management (Updated with last_activity)
+-- Session management
 CREATE TABLE public.user_sessions (
   session_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
   token          text UNIQUE NOT NULL,
   expires_at     timestamptz   NOT NULL,
-  last_activity  timestamptz   NOT NULL DEFAULT now(), -- Track session activity
-  user_agent     text, -- Track device/browser info
-  ip_address     inet, -- Track IP address
+  last_activity  timestamptz   NOT NULL DEFAULT now(),
+  user_agent     text,
+  ip_address     inet,
   created_at     timestamptz   NOT NULL DEFAULT now()
 );
 
 -- ============================================
--- 2) BRANCHES - ระบบสาขา (UPDATED WITH owner_id)
+-- 2) BRANCHES - ระบบสาขา
 -- ============================================
 
 CREATE TABLE public.branches (
@@ -45,14 +45,14 @@ CREATE TABLE public.branches (
   branch_name    varchar(255) NOT NULL,
   branch_image   text,
   branch_address text,
-  branch_desc    text, -- Changed from jsonb to text for simplicity
+  branch_desc    text,
   is_active      boolean      NOT NULL DEFAULT true,
   created_by     uuid REFERENCES public.users(user_id),
   created_at     timestamptz  NOT NULL DEFAULT now(),
-  updated_at     timestamptz  NOT NULL DEFAULT now() -- Added updated_at field
+  updated_at     timestamptz  NOT NULL DEFAULT now()
 );
 
--- สร้างตาราง branch_managers
+-- Branch managers
 CREATE TABLE public.branch_managers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   branch_id uuid NOT NULL REFERENCES public.branches(branch_id) ON DELETE CASCADE,
@@ -63,69 +63,44 @@ CREATE TABLE public.branch_managers (
   UNIQUE(branch_id, user_id)
 );
 
-create view public.branches_with_managers as
-select
-  branch_id,
-  branch_code,
-  branch_name,
-  branch_image,
-  branch_address,
-  branch_desc,
-  is_active,
-  created_by,
-  created_at,
-  updated_at,
-  owner_id,
+-- View for branches with managers
+CREATE VIEW public.branches_with_managers AS
+SELECT
+  b.branch_id,
+  b.branch_code,
+  b.branch_name,
+  b.branch_image,
+  b.branch_address,
+  b.branch_desc,
+  b.is_active,
+  b.created_by,
+  b.created_at,
+  b.updated_at,
   (
-    select
-      u.user_name
-    from
-      branch_managers bm
-      join users u on bm.user_id = u.user_id
-    where
-      bm.branch_id = b.branch_id
-      and bm.is_primary = true
-    limit
-      1
+    SELECT u.user_name
+    FROM branch_managers bm
+    JOIN users u ON bm.user_id = u.user_id
+    WHERE bm.branch_id = b.branch_id AND bm.is_primary = true
+    LIMIT 1
   ) as primary_manager_name,
   (
-    select
-      bm.user_id
-    from
-      branch_managers bm
-    where
-      bm.branch_id = b.branch_id
-      and bm.is_primary = true
-    limit
-      1
+    SELECT bm.user_id
+    FROM branch_managers bm
+    WHERE bm.branch_id = b.branch_id AND bm.is_primary = true
+    LIMIT 1
   ) as primary_manager_id,
   (
-    select
-      count(*) as count
-    from
-      branch_managers bm
-    where
-      bm.branch_id = b.branch_id
+    SELECT count(*)
+    FROM branch_managers bm
+    WHERE bm.branch_id = b.branch_id
   ) as manager_count
-from
-  branches b;
+FROM branches b;
 
 -- ============================================
 -- 3) ROOM MANAGEMENT - ระบบจัดการห้อง
 -- ============================================
 
--- รูปภาพห้อง
-CREATE TABLE public.room_images (
-  image_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id       uuid NOT NULL REFERENCES public.rooms(room_id) ON DELETE CASCADE,
-  image_url     text NOT NULL,
-  is_primary    boolean NOT NULL DEFAULT false,
-  display_order integer NOT NULL DEFAULT 0,
-  created_at    timestamptz NOT NULL DEFAULT now()
-);
-
-
--- 3.1 สิ่งอำนวยความสะดวก
+-- สิ่งอำนวยความสะดวก
 CREATE TABLE public.amenities (
   amenities_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   amenities_name  varchar(100) NOT NULL,
@@ -134,7 +109,7 @@ CREATE TABLE public.amenities (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
--- 3.2 ประเภทห้อง
+-- ประเภทห้อง
 CREATE TABLE public.room_types (
   roomtype_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   roomtype_name varchar(100) NOT NULL,
@@ -142,7 +117,7 @@ CREATE TABLE public.room_types (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
--- 3.3 หมวดหมู่ห้อง
+-- หมวดหมู่ห้อง
 CREATE TABLE public.room_categories (
   roomcate_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   roomcate_name  varchar(100) NOT NULL,
@@ -170,7 +145,15 @@ CREATE TABLE public.rooms (
   UNIQUE(branch_id, room_number)
 );
 
-
+-- รูปภาพห้อง
+CREATE TABLE public.room_images (
+  image_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id       uuid NOT NULL REFERENCES public.rooms(room_id) ON DELETE CASCADE,
+  image_url     text NOT NULL,
+  is_primary    boolean NOT NULL DEFAULT false,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
 
 -- ความสัมพันธ์ห้องกับสิ่งอำนวยความสะดวก
 CREATE TABLE public.room_amenities (
@@ -252,94 +235,585 @@ CREATE TABLE public.issue_images (
 );
 
 -- ============================================
--- 6) BILLING SYSTEM - ระบบบิลค่าเช่า
+-- เพิ่มส่วนนี้หลังจาก ISSUE REPORTING และก่อน PAYMENT SYSTEM
 -- ============================================
 
--- 6.1 อัตราค่าบริการ
-CREATE TABLE public.service_rates (
-  service_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  branch_id      uuid REFERENCES public.branches(branch_id) ON DELETE CASCADE,
-  service_type   varchar(50)  NOT NULL,
-  service_name   varchar(100) NOT NULL,
-  rate_per_unit  decimal(10,2) NOT NULL,
-  unit_type      varchar(20),
-  is_active      boolean NOT NULL DEFAULT true,
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(branch_id, service_type)
+-- ============================================
+-- 6) LATE PAYMENT & DISCOUNT SETTINGS - ตั้งค่าค่าปรับและส่วนลด
+-- ============================================
+
+CREATE TABLE public.payment_settings (
+  setting_id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  branch_id           uuid REFERENCES public.branches(branch_id) ON DELETE CASCADE,
+  
+  -- ตั้งค่าค่าปรับชำระล่าช้า
+  enable_late_fee     boolean NOT NULL DEFAULT false,
+  late_fee_type       varchar(20) CHECK (late_fee_type IN ('fixed','percentage','daily')),
+  late_fee_amount     decimal(10,2) DEFAULT 0, -- จำนวนเงินหรือเปอร์เซ็นต์
+  late_fee_start_day  integer DEFAULT 1, -- เริ่มคิดค่าปรับหลังครบกำหนดกี่วัน
+  late_fee_max_amount decimal(10,2), -- ค่าปรับสูงสุด (ถ้ามี)
+  
+  -- ตั้งค่าส่วนลด
+  enable_discount         boolean NOT NULL DEFAULT false,
+  early_payment_discount  decimal(10,2) DEFAULT 0, -- ส่วนลดชำระก่อนกำหนด (%)
+  early_payment_days      integer DEFAULT 0, -- ชำระก่อนกี่วันได้ส่วนลด
+  
+  setting_desc        text,
+  is_active           boolean NOT NULL DEFAULT true,
+  created_by          uuid REFERENCES public.users(user_id),
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+  
+  UNIQUE(branch_id)
 );
 
--- บิลหลัก
+-- ============================================
+-- 7) UTILITY RATES - อัตราค่าบริการ
+-- ============================================
+
+CREATE TABLE public.utility_rates (
+  rate_id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  branch_id         uuid REFERENCES public.branches(branch_id) ON DELETE CASCADE,
+  rate_name         varchar(100) NOT NULL,  -- ชื่อค่าบริการ เช่น ค่าไฟฟ้า, ค่าน้ำ
+  rate_price        decimal(10,2) NOT NULL, -- ราคาต่อหน่วย
+  rate_unit         varchar(20) NOT NULL,   -- หน่วย เช่น kWh, ลูกบาศก์เมตร
+  is_metered        boolean NOT NULL DEFAULT true, -- คิดตามมิเตอร์หรือไม่
+  is_fixed          boolean NOT NULL DEFAULT false, -- ค่าคงที่หรือไม่
+  fixed_amount      decimal(10,2) DEFAULT 0, -- จำนวนเงินคงที่ (ถ้าเป็นค่าคงที่)
+  additional_charge decimal(10,2) DEFAULT 0, -- ค่าใช้จ่ายเพิ่มเติม
+  rate_desc         text,
+  is_active         boolean NOT NULL DEFAULT true,
+  created_by        uuid REFERENCES public.users(user_id),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- 8) METER READINGS - บันทึกค่ามิเตอร์
+-- ============================================
+
+CREATE TABLE public.meter_readings (
+  reading_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id           uuid NOT NULL REFERENCES public.rooms(room_id) ON DELETE CASCADE,
+  rate_id           uuid NOT NULL REFERENCES public.utility_rates(rate_id),
+  reading_month     integer NOT NULL CHECK (reading_month BETWEEN 1 AND 12),
+  reading_year      integer NOT NULL CHECK (reading_year >= 2000),
+  previous_reading  decimal(10,2) NOT NULL DEFAULT 0, -- ค่ามิเตอร์เดือนก่อน
+  current_reading   decimal(10,2) NOT NULL,           -- ค่ามิเตอร์ล่าสุด
+  usage_amount      decimal(10,2) GENERATED ALWAYS AS (current_reading - previous_reading) STORED, -- จำนวนที่ใช้
+  reading_date      date NOT NULL,
+  reading_image     text, -- รูปภาพมิเตอร์
+  notes             text,
+  created_by        uuid REFERENCES public.users(user_id),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(room_id, rate_id, reading_month, reading_year)
+);
+
+-- ============================================
+-- 9) INVOICES - บิลค่าเช่า
+-- ============================================
+
 CREATE TABLE public.invoices (
-  invoice_id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_num                varchar(50) UNIQUE NOT NULL,
-  contract_id                uuid REFERENCES public.rental_contracts(contract_id),
-  room_id                    uuid REFERENCES public.rooms(room_id),
-  tenant_id                  uuid REFERENCES public.tenants(tenant_id),
-  billing_month              integer NOT NULL,
-  billing_year               integer NOT NULL,
-  rental_fee                 decimal(10,2) NOT NULL,
-  electricity_unit_previous  integer DEFAULT 0,
-  electricity_unit_current   integer DEFAULT 0,
-  electricity_unit_used      integer GENERATED ALWAYS AS (electricity_unit_current - electricity_unit_previous) STORED,
-  electricity_rate           decimal(10,2) DEFAULT 0,
-  electricity_amount         decimal(10,2) DEFAULT 0,
-  water_unit_previous        integer DEFAULT 0,
-  water_unit_current         integer DEFAULT 0,
-  water_unit_used            integer GENERATED ALWAYS AS (water_unit_current - water_unit_previous) STORED,
-  water_rate                 decimal(10,2) DEFAULT 0,
-  water_amount               decimal(10,2) DEFAULT 0,
-  total_amount               decimal(10,2) NOT NULL,
-  due_date                   date NOT NULL,
-  invoice_status             varchar(20) NOT NULL DEFAULT 'pending'
-                             CHECK (invoice_status IN ('pending','paid','overdue','cancelled')),
-  invoice_notes              text,
-  created_by                 uuid REFERENCES public.users(user_id),
-  created_at                 timestamptz NOT NULL DEFAULT now(),
-  updated_at                 timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (contract_id, billing_month, billing_year)
-);
-
--- ค่าบริการเพิ่มเติม
-CREATE TABLE public.invoice_additional_charges (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id    uuid NOT NULL REFERENCES public.invoices(invoice_id) ON DELETE CASCADE,
-  charge_name   varchar(100) NOT NULL,
-  charge_amount decimal(10,2) NOT NULL,
-  quantity      integer NOT NULL DEFAULT 1,
-  total_amount  decimal(10,2) GENERATED ALWAYS AS (charge_amount * quantity) STORED,
-  description   text,
-  created_at    timestamptz NOT NULL DEFAULT now()
+  invoice_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_number    varchar(50) UNIQUE NOT NULL,
+  contract_id       uuid NOT NULL REFERENCES public.rental_contracts(contract_id),
+  room_id           uuid NOT NULL REFERENCES public.rooms(room_id),
+  tenant_id         uuid NOT NULL REFERENCES public.tenants(tenant_id),
+  invoice_month     integer NOT NULL CHECK (invoice_month BETWEEN 1 AND 12),
+  invoice_year      integer NOT NULL CHECK (invoice_year >= 2000),
+  
+  -- ค่าเช่า
+  rental_amount     decimal(10,2) NOT NULL,
+  
+  -- ค่าบริการรวม (จากตาราง invoice_utilities)
+  utilities_amount  decimal(10,2) NOT NULL DEFAULT 0,
+  
+  -- ค่าใช้จ่ายอื่นๆ
+  other_charges     decimal(10,2) NOT NULL DEFAULT 0,
+  
+  -- ส่วนลด
+  discount_type     varchar(20) CHECK (discount_type IN ('none','early_payment','custom')),
+  discount_amount   decimal(10,2) NOT NULL DEFAULT 0,
+  discount_reason   text,
+  
+  -- ค่าปรับชำระล่าช้า
+  late_fee_amount   decimal(10,2) NOT NULL DEFAULT 0,
+  late_fee_days     integer DEFAULT 0, -- จำนวนวันที่เกินกำหหนด
+  
+  -- ยอดรวมทั้งหมด
+  subtotal          decimal(10,2) NOT NULL, -- ยอดก่อนหักส่วนลดและค่าปรับ
+  total_amount      decimal(10,2) NOT NULL, -- ยอดสุทธิ
+  
+  -- สถานะการชำระเงิน
+  invoice_status    varchar(20) NOT NULL DEFAULT 'pending'
+                    CHECK (invoice_status IN ('pending','partial','paid','overdue','cancelled')),
+  
+  -- จำนวนเงินที่ชำระแล้ว
+  paid_amount       decimal(10,2) NOT NULL DEFAULT 0,
+  
+  -- วันครบกำหนดชำระ
+  due_date          date NOT NULL,
+  
+  -- วันที่ออกบิล
+  issue_date        date NOT NULL DEFAULT CURRENT_DATE,
+  
+  -- วันที่ชำระเงินครบ
+  paid_date         date,
+  
+  invoice_notes     text,
+  created_by        uuid REFERENCES public.users(user_id),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  
+  UNIQUE(contract_id, invoice_month, invoice_year)
 );
 
 -- ============================================
--- 7) PAYMENT SYSTEM - ระบบจ่ายเงิน
+-- 9.1) INVOICE UTILITIES - รายละเอียดค่าบริการในบิล
+-- ============================================
+
+CREATE TABLE public.invoice_utilities (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id        uuid NOT NULL REFERENCES public.invoices(invoice_id) ON DELETE CASCADE,
+  rate_id           uuid NOT NULL REFERENCES public.utility_rates(rate_id),
+  reading_id        uuid REFERENCES public.meter_readings(reading_id), -- ถ้าคิดตามมิเตอร์
+  
+  utility_name      varchar(100) NOT NULL, -- ชื่อค่าบริการ
+  unit_price        decimal(10,2) NOT NULL, -- ราคาต่อหน่วย
+  usage_amount      decimal(10,2) NOT NULL DEFAULT 0, -- จำนวนที่ใช้
+  fixed_amount      decimal(10,2) NOT NULL DEFAULT 0, -- ค่าคงที่
+  additional_charge decimal(10,2) NOT NULL DEFAULT 0, -- ค่าใช้จ่ายเพิ่มเติม
+  
+  -- ยอดรวม = (unit_price * usage_amount) + fixed_amount + additional_charge
+  total_amount      decimal(10,2) NOT NULL,
+  
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- 9.2) INVOICE OTHER CHARGES - ค่าใช้จ่ายอื่นๆ ในบิล
+-- ============================================
+
+CREATE TABLE public.invoice_other_charges (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id     uuid NOT NULL REFERENCES public.invoices(invoice_id) ON DELETE CASCADE,
+  charge_name    varchar(100) NOT NULL, -- เช่น ค่าปรับ, ค่าซ่อมแซม
+  charge_amount  decimal(10,2) NOT NULL,
+  charge_desc    text,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- INDEXES สำหรับตารางใหม่
+-- ============================================
+
+-- Payment Settings
+CREATE INDEX idx_payment_settings_branch ON public.payment_settings(branch_id);
+CREATE INDEX idx_payment_settings_active ON public.payment_settings(is_active);
+
+-- Utility Rates
+CREATE INDEX idx_utility_rates_branch ON public.utility_rates(branch_id);
+CREATE INDEX idx_utility_rates_active ON public.utility_rates(is_active);
+
+-- Meter Readings
+CREATE INDEX idx_meter_readings_room ON public.meter_readings(room_id);
+CREATE INDEX idx_meter_readings_rate ON public.meter_readings(rate_id);
+CREATE INDEX idx_meter_readings_month_year ON public.meter_readings(reading_month, reading_year);
+
+-- Invoices
+CREATE INDEX idx_invoices_contract ON public.invoices(contract_id);
+CREATE INDEX idx_invoices_room ON public.invoices(room_id);
+CREATE INDEX idx_invoices_tenant ON public.invoices(tenant_id);
+CREATE INDEX idx_invoices_status ON public.invoices(invoice_status);
+CREATE INDEX idx_invoices_month_year ON public.invoices(invoice_month, invoice_year);
+CREATE INDEX idx_invoices_due_date ON public.invoices(due_date);
+
+-- Invoice Utilities
+CREATE INDEX idx_invoice_utilities_invoice ON public.invoice_utilities(invoice_id);
+CREATE INDEX idx_invoice_utilities_rate ON public.invoice_utilities(rate_id);
+
+-- Invoice Other Charges
+CREATE INDEX idx_invoice_other_charges_invoice ON public.invoice_other_charges(invoice_id);
+
+-- ============================================
+-- TRIGGERS สำหรับตารางใหม่
+-- ============================================
+
+CREATE TRIGGER trg_payment_settings_updated_at BEFORE UPDATE ON public.payment_settings FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_utility_rates_updated_at BEFORE UPDATE ON public.utility_rates FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_meter_readings_updated_at BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_invoices_updated_at BEFORE UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- ============================================
+-- RLS สำหรับตารางใหม่
+-- ============================================
+
+ALTER TABLE public.payment_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.utility_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meter_readings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_utilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_other_charges ENABLE ROW LEVEL SECURITY;
+
+-- สร้าง Policy สำหรับ anon
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOR t IN
+    SELECT unnest(ARRAY['payment_settings','utility_rates','meter_readings','invoices','invoice_utilities','invoice_other_charges'])
+  LOOP
+    EXECUTE format('CREATE POLICY "anon_all_%I" ON public.%I FOR ALL USING (true) WITH CHECK (true);', t, t);
+  END LOOP;
+END$$;
+
+-- ============================================
+-- FUNCTIONS เพิ่มเติม
+-- ============================================
+
+-- ฟังก์ชันคำนวณค่าปรับชำระล่าช้า
+CREATE OR REPLACE FUNCTION public.calculate_late_fee(
+  p_invoice_id uuid,
+  p_payment_date date DEFAULT CURRENT_DATE
+)
+RETURNS decimal LANGUAGE plpgsql AS $$
+DECLARE
+  v_due_date date;
+  v_total_amount decimal(10,2);
+  v_days_late integer;
+  v_branch_id uuid;
+  v_setting record;
+  v_late_fee decimal(10,2) := 0;
+BEGIN
+  -- ดึงข้อมูลบิล
+  SELECT i.due_date, i.subtotal, r.branch_id
+  INTO v_due_date, v_total_amount, v_branch_id
+  FROM invoices i
+  JOIN rooms r ON i.room_id = r.room_id
+  WHERE i.invoice_id = p_invoice_id;
+  
+  -- คำนวณจำนวนวันที่เกินกำหนด
+  v_days_late := GREATEST(0, p_payment_date - v_due_date);
+  
+  -- ดึงการตั้งค่าค่าปรับ
+  SELECT * INTO v_setting
+  FROM payment_settings
+  WHERE branch_id = v_branch_id AND is_active = true
+  LIMIT 1;
+  
+  -- ถ้าไม่เปิดใช้งานค่าปรับ หรือยังไม่เกินกำหนด
+  IF v_setting IS NULL OR NOT v_setting.enable_late_fee OR v_days_late < v_setting.late_fee_start_day THEN
+    RETURN 0;
+  END IF;
+  
+  -- คำนวณค่าปรับตามประเภท
+  CASE v_setting.late_fee_type
+    WHEN 'fixed' THEN
+      v_late_fee := v_setting.late_fee_amount;
+    
+    WHEN 'percentage' THEN
+      v_late_fee := v_total_amount * (v_setting.late_fee_amount / 100);
+    
+    WHEN 'daily' THEN
+      v_late_fee := v_setting.late_fee_amount * (v_days_late - v_setting.late_fee_start_day + 1);
+  END CASE;
+  
+  -- จำกัดค่าปรับสูงสุด (ถ้ามีการกำหนด)
+  IF v_setting.late_fee_max_amount IS NOT NULL THEN
+    v_late_fee := LEAST(v_late_fee, v_setting.late_fee_max_amount);
+  END IF;
+  
+  RETURN COALESCE(v_late_fee, 0);
+END$$;
+
+-- ฟังก์ชันคำนวณส่วนลดชำระก่อนกำหนด
+CREATE OR REPLACE FUNCTION public.calculate_early_discount(
+  p_invoice_id uuid,
+  p_payment_date date DEFAULT CURRENT_DATE
+)
+RETURNS decimal LANGUAGE plpgsql AS $$
+DECLARE
+  v_due_date date;
+  v_subtotal decimal(10,2);
+  v_days_early integer;
+  v_branch_id uuid;
+  v_setting record;
+  v_discount decimal(10,2) := 0;
+BEGIN
+  -- ดึงข้อมูลบิล
+  SELECT i.due_date, i.subtotal, r.branch_id
+  INTO v_due_date, v_subtotal, v_branch_id
+  FROM invoices i
+  JOIN rooms r ON i.room_id = r.room_id
+  WHERE i.invoice_id = p_invoice_id;
+  
+  -- คำนวณจำนวนวันที่ชำระก่อนกำหนด
+  v_days_early := GREATEST(0, v_due_date - p_payment_date);
+  
+  -- ดึงการตั้งค่าส่วนลด
+  SELECT * INTO v_setting
+  FROM payment_settings
+  WHERE branch_id = v_branch_id AND is_active = true
+  LIMIT 1;
+  
+  -- ถ้าไม่เปิดใช้งานส่วนลด หรือชำระไม่เร็วพอ
+  IF v_setting IS NULL OR NOT v_setting.enable_discount OR v_days_early < v_setting.early_payment_days THEN
+    RETURN 0;
+  END IF;
+  
+  -- คำนวณส่วนลด
+  v_discount := v_subtotal * (v_setting.early_payment_discount / 100);
+  
+  RETURN COALESCE(v_discount, 0);
+END$$;
+
+-- ฟังก์ชันคำนวณยอดรวมบิล
+CREATE OR REPLACE FUNCTION public.calculate_invoice_total(p_invoice_id uuid)
+RETURNS decimal LANGUAGE plpgsql AS $$
+DECLARE
+  v_rental_amount decimal(10,2);
+  v_utilities_amount decimal(10,2);
+  v_other_charges decimal(10,2);
+  v_discount decimal(10,2);
+  v_late_fee decimal(10,2);
+  v_subtotal decimal(10,2);
+  v_total decimal(10,2);
+BEGIN
+  SELECT 
+    rental_amount,
+    utilities_amount,
+    other_charges,
+    discount_amount,
+    late_fee_amount
+  INTO 
+    v_rental_amount,
+    v_utilities_amount,
+    v_other_charges,
+    v_discount,
+    v_late_fee
+  FROM invoices
+  WHERE invoice_id = p_invoice_id;
+  
+  -- คำนวณยอดย่อย (ก่อนหักส่วนลดและค่าปรับ)
+  v_subtotal := COALESCE(v_rental_amount, 0) + 
+                COALESCE(v_utilities_amount, 0) + 
+                COALESCE(v_other_charges, 0);
+  
+  -- คำนวณยอดสุทธิ
+  v_total := v_subtotal - COALESCE(v_discount, 0) + COALESCE(v_late_fee, 0);
+  
+  RETURN v_total;
+END$$;
+
+-- ฟังก์ชันอัพเดทยอดค่าบริการในบิล
+CREATE OR REPLACE FUNCTION public.update_invoice_utilities_total()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_utilities_total decimal(10,2);
+  v_subtotal decimal(10,2);
+BEGIN
+  -- คำนวณยอดรวมค่าบริการ
+  SELECT COALESCE(SUM(total_amount), 0)
+  INTO v_utilities_total
+  FROM invoice_utilities
+  WHERE invoice_id = NEW.invoice_id;
+  
+  -- คำนวณ subtotal
+  SELECT rental_amount + v_utilities_total + other_charges
+  INTO v_subtotal
+  FROM invoices
+  WHERE invoice_id = NEW.invoice_id;
+  
+  -- อัพเดทยอดค่าบริการและ subtotal ในบิล
+  UPDATE invoices
+  SET utilities_amount = v_utilities_total,
+      subtotal = v_subtotal,
+      total_amount = calculate_invoice_total(NEW.invoice_id)
+  WHERE invoice_id = NEW.invoice_id;
+  
+  RETURN NEW;
+END$$;
+
+-- ฟังก์ชันอัพเดทยอดค่าใช้จ่ายอื่นๆ ในบิล
+CREATE OR REPLACE FUNCTION public.update_invoice_other_charges_total()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_other_total decimal(10,2);
+  v_subtotal decimal(10,2);
+BEGIN
+  -- คำนวณยอดรวมค่าใช้จ่ายอื่นๆ
+  SELECT COALESCE(SUM(charge_amount), 0)
+  INTO v_other_total
+  FROM invoice_other_charges
+  WHERE invoice_id = NEW.invoice_id;
+  
+  -- คำนวณ subtotal
+  SELECT rental_amount + utilities_amount + v_other_total
+  INTO v_subtotal
+  FROM invoices
+  WHERE invoice_id = NEW.invoice_id;
+  
+  -- อัพเดทยอดค่าใช้จ่ายอื่นๆ และ subtotal ในบิล
+  UPDATE invoices
+  SET other_charges = v_other_total,
+      subtotal = v_subtotal,
+      total_amount = calculate_invoice_total(NEW.invoice_id)
+  WHERE invoice_id = NEW.invoice_id;
+  
+  RETURN NEW;
+END$$;
+
+-- ฟังก์ชันอัพเดทสถานะบิลอัตโนมัติ
+CREATE OR REPLACE FUNCTION public.update_invoice_status()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- ถ้าชำระครบแล้ว
+  IF NEW.paid_amount >= NEW.total_amount THEN
+    NEW.invoice_status := 'paid';
+    NEW.paid_date := CURRENT_DATE;
+  
+  -- ถ้าชำระบางส่วน
+  ELSIF NEW.paid_amount > 0 THEN
+    NEW.invoice_status := 'partial';
+  
+  -- ถ้าเกินกำหนดชำระ
+  ELSIF NEW.due_date < CURRENT_DATE AND NEW.paid_amount = 0 THEN
+    NEW.invoice_status := 'overdue';
+    
+    -- คำนวณค่าปรับอัตโนมัติ
+    NEW.late_fee_amount := calculate_late_fee(NEW.invoice_id, CURRENT_DATE);
+    NEW.late_fee_days := GREATEST(0, CURRENT_DATE - NEW.due_date);
+    NEW.total_amount := calculate_invoice_total(NEW.invoice_id);
+  END IF;
+  
+  RETURN NEW;
+END$$;
+-- ติดตั้ง Triggers สำหรับอัพเดทยอดอัตโนมัติ
+CREATE TRIGGER trg_update_utilities_total 
+AFTER INSERT OR UPDATE OR DELETE ON public.invoice_utilities
+FOR EACH ROW EXECUTE FUNCTION public.update_invoice_utilities_total();
+
+CREATE TRIGGER trg_update_other_charges_total 
+AFTER INSERT OR UPDATE OR DELETE ON public.invoice_other_charges
+FOR EACH ROW EXECUTE FUNCTION public.update_invoice_other_charges_total();
+
+CREATE TRIGGER trg_update_invoice_status
+BEFORE UPDATE ON public.invoices
+FOR EACH ROW EXECUTE FUNCTION public.update_invoice_status();
+
+-- ============================================
+-- SAMPLE DATA สำหรับตารางใหม่
+-- ============================================
+
+-- ตัวอย่างการตั้งค่าค่าปรับและส่วนลด (ควรเพิ่มหลังจากมีสาขาแล้ว)
+-- INSERT INTO public.payment_settings (branch_id, enable_late_fee, late_fee_type, late_fee_amount, late_fee_start_day, late_fee_max_amount, enable_discount, early_payment_discount, early_payment_days)
+-- VALUES 
+--   (
+--     (SELECT branch_id FROM branches LIMIT 1),
+--     true,              -- เปิดใช้งานค่าปรับ
+--     'daily',           -- คิดค่าปรับรายวัน
+--     50.00,             -- 50 บาทต่อวัน
+--     3,                 -- เริ่มคิดหลังเกินกำหนด 3 วัน
+--     1000.00,           -- ค่าปรับสูงสุด 1,000 บาท
+--     true,              -- เปิดใช้งานส่วนลด
+--     5.00,              -- ส่วนลด 5%
+--     7                  -- ชำระก่อนกำหนด 7 วัน
+--   );
+
+-- ตัวอย่างอัตราค่าบริการ (ควรเพิ่มหลังจากมีสาขาแล้ว)
+-- INSERT INTO public.utility_rates (branch_id, rate_name, rate_price, rate_unit, is_metered, is_fixed, fixed_amount, additional_charge)
+-- VALUES 
+--   ((SELECT branch_id FROM branches LIMIT 1), 'ค่าไฟฟ้า', 8.00, 'kWh', true, false, 0, 0),
+--   ((SELECT branch_id FROM branches LIMIT 1), 'ค่าน้ำ', 25.00, 'ลูกบาศก์เมตร', true, false, 0, 0),
+--   ((SELECT branch_id FROM branches LIMIT 1), 'ค่าส่วนกลาง', 0, 'เดือน', false, true, 500, 0),
+--   ((SELECT branch_id FROM branches LIMIT 1), 'ค่าอินเทอร์เน็ต', 0, 'เดือน', false, true, 300, 0);
+
+-- ============================================
+-- VIEW สำหรับดูข้อมูลบิลแบบสรุป
+-- ============================================
+
+CREATE VIEW public.invoice_summary AS
+SELECT 
+  i.invoice_id,
+  i.invoice_number,
+  i.invoice_month,
+  i.invoice_year,
+  i.issue_date,
+  i.due_date,
+  i.invoice_status,
+  t.tenant_fullname,
+  t.tenant_phone,
+  r.room_number,
+  b.branch_name,
+  i.rental_amount,
+  i.utilities_amount,
+  i.other_charges,
+  i.discount_amount,
+  i.total_amount,
+  i.paid_amount,
+  (i.total_amount - i.paid_amount) as remaining_amount,
+  CASE 
+    WHEN i.invoice_status = 'paid' THEN 0
+    WHEN i.due_date < CURRENT_DATE AND i.invoice_status != 'paid' THEN 
+      CURRENT_DATE - i.due_date
+    ELSE 0
+  END as days_overdue
+FROM invoices i
+JOIN tenants t ON i.tenant_id = t.tenant_id
+JOIN rooms r ON i.room_id = r.room_id
+JOIN branches b ON r.branch_id = b.branch_id;
+
+-- View สำหรับดูรายละเอียดค่ามิเตอร์
+CREATE VIEW public.meter_readings_detail AS
+SELECT 
+  mr.reading_id,
+  mr.reading_month,
+  mr.reading_year,
+  mr.reading_date,
+  mr.previous_reading,
+  mr.current_reading,
+  mr.usage_amount,
+  r.room_number,
+  b.branch_name,
+  ur.rate_name,
+  ur.rate_price,
+  ur.rate_unit,
+  (mr.usage_amount * ur.rate_price) as calculated_amount
+FROM meter_readings mr
+JOIN rooms r ON mr.room_id = r.room_id
+JOIN branches b ON r.branch_id = b.branch_id
+JOIN utility_rates ur ON mr.rate_id = ur.rate_id;
+
+-- ============================================
+-- 10) PAYMENT SYSTEM - ระบบจ่ายเงิน
 -- ============================================
 
 CREATE TABLE public.payments (
-  payment_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  payment_number   varchar(50) UNIQUE NOT NULL,
-  invoice_id       uuid REFERENCES public.invoices(invoice_id),
-  tenant_id        uuid REFERENCES public.tenants(tenant_id),
-  payment_date     timestamptz NOT NULL,
-  payment_amount   decimal(10,2) NOT NULL,
-  payment_method   varchar(30) NOT NULL CHECK (payment_method IN ('cash','transfer','credit_card','promptpay','other')),
-  reference_number varchar(100),
+  payment_id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_number     varchar(50) UNIQUE NOT NULL,
+  invoice_id         uuid REFERENCES public.invoices(invoice_id),
+  tenant_id          uuid REFERENCES public.tenants(tenant_id),
+  payment_date       timestamptz NOT NULL,
+  payment_amount     decimal(10,2) NOT NULL,
+  payment_method     varchar(30) NOT NULL CHECK (payment_method IN ('cash','transfer','credit_card','promptpay','other')),
+  reference_number   varchar(100),
   payment_slip_image text,
-  payment_status   varchar(20) NOT NULL DEFAULT 'pending'
-                   CHECK (payment_status IN ('pending','verified','rejected')),
-  verified_by      uuid REFERENCES public.users(user_id),
-  verified_date    timestamptz,
-  payment_notes    text,
-  created_by       uuid REFERENCES public.users(user_id),
-  created_at       timestamptz NOT NULL DEFAULT now(),
-  updated_at       timestamptz NOT NULL DEFAULT now()
+  payment_status     varchar(20) NOT NULL DEFAULT 'pending'
+                     CHECK (payment_status IN ('pending','verified','rejected')),
+  verified_by        uuid REFERENCES public.users(user_id),
+  verified_date      timestamptz,
+  payment_notes      text,
+  created_by         uuid REFERENCES public.users(user_id),
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
 -- ============================================
--- INDEXES (UPDATED)
+-- INDEXES
 -- ============================================
 
+-- Users & Sessions
 CREATE INDEX idx_users_user_name   ON public.users(user_name);
 CREATE INDEX idx_users_user_email  ON public.users(user_email);
 CREATE INDEX idx_users_role        ON public.users(role);
@@ -349,13 +823,15 @@ CREATE INDEX idx_sessions_token     ON public.user_sessions(token);
 CREATE INDEX idx_sessions_expires   ON public.user_sessions(expires_at);
 CREATE INDEX idx_sessions_activity  ON public.user_sessions(last_activity);
 
+-- Branches
 CREATE INDEX idx_branches_active   ON public.branches(is_active);
-CREATE INDEX idx_branches_owner    ON public.branches(owner_id); -- New index for owner_id
-CREATE INDEX idx_branches_updated  ON public.branches(updated_at); -- New index for updated_at
+CREATE INDEX idx_branches_updated  ON public.branches(updated_at);
 
+-- Rooms
 CREATE INDEX idx_rooms_branch      ON public.rooms(branch_id);
 CREATE INDEX idx_rooms_status      ON public.rooms(room_status);
 
+-- Tenants & Contracts
 CREATE INDEX idx_tenants_user      ON public.tenants(user_id);
 CREATE INDEX idx_tenants_idcard    ON public.tenants(tenant_idcard);
 
@@ -363,21 +839,19 @@ CREATE INDEX idx_contracts_room    ON public.rental_contracts(room_id);
 CREATE INDEX idx_contracts_tenant  ON public.rental_contracts(tenant_id);
 CREATE INDEX idx_contracts_status  ON public.rental_contracts(contract_status);
 
+-- Issues
 CREATE INDEX idx_issues_room       ON public.issue_reports(room_id);
 CREATE INDEX idx_issues_tenant     ON public.issue_reports(tenant_id);
 CREATE INDEX idx_issues_status     ON public.issue_reports(issue_status);
 
-CREATE INDEX idx_invoices_contract ON public.invoices(contract_id);
-CREATE INDEX idx_invoices_tenant   ON public.invoices(tenant_id);
-CREATE INDEX idx_invoices_status   ON public.invoices(invoice_status);
-CREATE INDEX idx_invoices_monthyr  ON public.invoices(billing_month, billing_year);
 
+-- Payments
 CREATE INDEX idx_payments_invoice  ON public.payments(invoice_id);
 CREATE INDEX idx_payments_tenant   ON public.payments(tenant_id);
 CREATE INDEX idx_payments_status   ON public.payments(payment_status);
 
 -- ============================================
--- FUNCTIONS (UPDATED)
+-- FUNCTIONS
 -- ============================================
 
 CREATE OR REPLACE FUNCTION public.hash_password(password text)
@@ -393,14 +867,13 @@ BEGIN
 END$$;
 
 CREATE OR REPLACE FUNCTION public.generate_token()
-RETURNS text LANGUAGE plpgsql AS $
+RETURNS text LANGUAGE plpgsql AS $$
 BEGIN
   RETURN encode(gen_random_bytes(32), 'hex');
-END$;
+END$$;
 
--- New function to get default permissions based on role
 CREATE OR REPLACE FUNCTION public.get_default_permissions(user_role text)
-RETURNS jsonb LANGUAGE plpgsql AS $
+RETURNS jsonb LANGUAGE plpgsql AS $$
 BEGIN
   CASE user_role
     WHEN 'superadmin' THEN
@@ -414,55 +887,44 @@ BEGIN
     ELSE
       RETURN '[]'::jsonb;
   END CASE;
-END$;
+END$$;
 
--- Updated trigger function to set updated_at
 CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
-END$;
+END$$;
 
--- New trigger function for setting default permissions on user creation
 CREATE OR REPLACE FUNCTION public.set_user_defaults()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  -- Set default permissions if not provided
   IF NEW.permissions = '[]'::jsonb OR NEW.permissions IS NULL THEN
     NEW.permissions = public.get_default_permissions(NEW.role);
   END IF;
-  
   NEW.updated_at = now();
   RETURN NEW;
-END$;
+END$$;
 
 -- ============================================
--- TRIGGERS (UPDATED)
+-- TRIGGERS
 -- ============================================
 
--- Update user trigger to use new function
-DROP TRIGGER IF EXISTS trg_users_updated_at ON public.users;
 CREATE TRIGGER trg_users_updated_at     BEFORE INSERT OR UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.set_user_defaults();
-
--- Create trigger for branches updated_at (NEW)
 CREATE TRIGGER trg_branches_updated_at  BEFORE UPDATE ON public.branches         FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
 CREATE TRIGGER trg_rooms_updated_at     BEFORE UPDATE ON public.rooms            FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_tenants_updated_at   BEFORE UPDATE ON public.tenants          FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_contracts_updated_at BEFORE UPDATE ON public.rental_contracts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_issues_updated_at    BEFORE UPDATE ON public.issue_reports    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER trg_invoices_updated_at  BEFORE UPDATE ON public.invoices         FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_payments_updated_at  BEFORE UPDATE ON public.payments         FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER trg_rates_updated_at     BEFORE UPDATE ON public.service_rates    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
 -- ============================================
--- RLS (เปิดใช้ + อนุญาต anon ทั้งหมด ตามคำสั่ง)
+-- RLS (Row Level Security)
 -- ============================================
 
 ALTER TABLE public.users                       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_sessions               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches                    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.branch_managers             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms                       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.room_amenities              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.room_images                 ENABLE ROW LEVEL SECURITY;
@@ -473,15 +935,10 @@ ALTER TABLE public.tenants                     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rental_contracts            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.issue_reports               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.issue_images                ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.service_rates               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.invoices                    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.invoice_additional_charges  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments                    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.branch_managers             ENABLE ROW LEVEL SECURITY;
 
-
--- (ตามโจทย์ ให้ anon ทำได้ทั้งหมดในทุกตาราง)
-DO $
+-- สร้าง Policy สำหรับ anon (ให้ทำได้ทุกอย่าง - สำหรับ development)
+DO $$
 DECLARE
   t text;
 BEGIN
@@ -489,23 +946,19 @@ BEGIN
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public'
       AND tablename IN (
-        'users','user_sessions','branches','rooms','room_images','room_amenities',
+        'users','user_sessions','branches','branch_managers','rooms','room_images','room_amenities',
         'amenities','room_types','room_categories','tenants','rental_contracts',
-        'issue_reports','issue_images','service_rates','invoices',
-        'invoice_additional_charges','payments,branch_managers'
+        'issue_reports','issue_images','payments'
       )
   LOOP
     EXECUTE format('CREATE POLICY "anon_all_%I" ON public.%I FOR ALL USING (true) WITH CHECK (true);', t, t);
   END LOOP;
-END$;
-
-
+END$$;
 
 -- ============================================
 -- STORAGE BUCKETS + POLICIES
 -- ============================================
 
--- Create storage buckets for file uploads
 INSERT INTO storage.buckets (id, name, public) 
 VALUES 
   ('branch-images', 'branch-images', true),
@@ -516,18 +969,16 @@ VALUES
   ('issue-images', 'issue-images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage policies for public read access
 CREATE POLICY "Public read access" ON storage.objects FOR SELECT USING (bucket_id IN ('branch-images', 'room-images', 'tenant-profiles', 'issue-images'));
-
--- Storage policies for authenticated users
 CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "Users can update own files" ON storage.objects FOR UPDATE USING (auth.uid()::text = (storage.foldername(name))[1]);
 CREATE POLICY "Users can delete own files" ON storage.objects FOR DELETE USING (auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ============================================
--- SAMPLE DATA (สอดคล้องกับชื่อคอลัมน์ใหม่)
+-- SAMPLE DATA
 -- ============================================
 
+-- ข้อมูลสิ่งอำนวยความสะดวก
 INSERT INTO public.amenities (amenities_name, amenities_icon, amenities_desc) VALUES
   ('แอร์', 'ac_unit', 'เครื่องปรับอากาศ'),
   ('พัดลม', 'air', 'พัดลมเพดาน'),
@@ -538,55 +989,29 @@ INSERT INTO public.amenities (amenities_name, amenities_icon, amenities_desc) VA
   ('WiFi', 'wifi', 'อินเทอร์เน็ตไร้สาย'),
   ('ที่จอดรถ', 'local_parking', 'ที่จอดรถส่วนตัว'),
   ('กล้องวงจรปิด', 'videocam', 'ระบบรักษาความปลอดภัย'),
-  ('คีย์การ์ด', 'credit_card', 'ระบบคีย์การ์ด');
+  ('คีย์การ์ด', 'credit_card', 'ระบบคีย์การ์ด')
+ON CONFLICT DO NOTHING;
 
+-- ข้อมูลประเภทห้อง
 INSERT INTO public.room_types (roomtype_name, roomtype_desc) VALUES
   ('ห้องพัดลม', 'ห้องพักมีพัดลมเพดาน'),
   ('ห้องแอร์', 'ห้องพักมีเครื่องปรับอากาศ'),
   ('ห้อง Studio', 'ห้องพักแบบสตูดิโอ'),
   ('ห้อง 1 Bedroom', 'ห้องนอนแยก 1 ห้อง'),
-  ('ห้อง 2 Bedroom', 'ห้องนอนแยก 2 ห้อง');
+  ('ห้อง 2 Bedroom', 'ห้องนอนแยก 2 ห้อง')
+ON CONFLICT DO NOTHING;
 
+-- ข้อมูลหมวดหมู่ห้อง
 INSERT INTO public.room_categories (roomcate_name, roomcate_desc) VALUES
   ('ห้องเดี่ยว', 'ห้องพักสำหรับ 1 คน'),
   ('ห้องคู่', 'ห้องพักสำหรับ 2 คน'),
   ('ห้องครอบครัว', 'ห้องพักสำหรับครอบครัว'),
   ('บ้านเช่า', 'บ้านเดี่ยวให้เช่า'),
-  ('ทาวน์เฮาส์', 'ทาวน์เฮาส์ให้เช่า');
+  ('ทาวน์เฮาส์', 'ทาวน์เฮาส์ให้เช่า')
+ON CONFLICT DO NOTHING;
 
--- ผู้ใช้แรก (superadmin) รหัสผ่าน: admin123
+-- สร้างผู้ใช้แรก (superadmin) รหัสผ่าน: admin123
 INSERT INTO public.users (user_name, user_email, user_pass, role)
 VALUES ('admin', 'admin@rental.com', public.hash_password('admin123'), 'superadmin')
 ON CONFLICT (user_name) DO NOTHING;
 
--- ============================================
--- UPDATE EXISTING DATA (Migration Script)
--- ============================================
-
--- If you already have data in branches table without updated_at, uncomment and run:
--- UPDATE public.branches SET updated_at = created_at WHERE updated_at IS NULL;
-
--- Add some sample branches with the new schema
-INSERT INTO public.branches (branch_code, branch_name, branch_address, branch_desc, is_active, created_by)
-SELECT 
-  'BR001', 
-  'สาขาสยามสแควร์', 
-  '991 ถนนพระราม 1 แขวงปทุมวัน เขตปทุมวัน กรุงเทพมหานคร 10330',
-  'สาขาหลักในย่านสยามสแควร์ ใจกลางเมือง',
-  true,
-  u.user_id
-FROM public.users u 
-WHERE u.user_name = 'admin'
-ON CONFLICT (branch_code) DO NOTHING;
-
-INSERT INTO public.branches (branch_code, branch_name, branch_address, branch_desc, is_active, created_by)
-SELECT 
-  'BR002', 
-  'สาขาคลองเตย', 
-  '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพมหานคร 10110',
-  'สาขาในย่านคลองเตย ใกล้รถไฟฟ้า',
-  true,
-  u.user_id
-FROM public.users u 
-WHERE u.user_name = 'admin'
-ON CONFLICT (branch_code) DO NOTHING;
