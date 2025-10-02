@@ -733,4 +733,341 @@ class RoomService {
       throw Exception('เกิดข้อผิดพลาดในการโหลดสถิติห้องพัก: $e');
     }
   }
+
+  // ============================================
+  // ROOM TYPES CRUD
+  // ============================================
+
+  /// Create room type
+  static Future<Map<String, dynamic>> createRoomType(
+      Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการสร้างประเภทห้อง'};
+      }
+
+      final result =
+          await _supabase.from('room_types').insert(data).select().single();
+
+      return {
+        'success': true,
+        'message': 'เพิ่มประเภทห้องสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการเพิ่มประเภทห้อง: $e',
+      };
+    }
+  }
+
+  /// Update room type
+  static Future<Map<String, dynamic>> updateRoomType(
+      String id, Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการแก้ไขประเภทห้อง'};
+      }
+
+      final result = await _supabase
+          .from('room_types')
+          .update(data)
+          .eq('roomtype_id', id)
+          .select()
+          .single();
+
+      return {
+        'success': true,
+        'message': 'แก้ไขประเภทห้องสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการแก้ไขประเภทห้อง: $e',
+      };
+    }
+  }
+
+  /// Delete room type
+  static Future<Map<String, dynamic>> deleteRoomType(String id) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการลบประเภทห้อง'};
+      }
+
+      // Check if any rooms use this type
+      final roomsUsingType = await _supabase
+          .from('rooms')
+          .select('room_id')
+          .eq('room_type_id', id)
+          .limit(1);
+
+      if (roomsUsingType.isNotEmpty) {
+        return {
+          'success': false,
+          'message': 'ไม่สามารถลบได้ เนื่องจากมีห้องที่ใช้ประเภทนี้อยู่',
+        };
+      }
+
+      await _supabase.from('room_types').delete().eq('roomtype_id', id);
+
+      return {
+        'success': true,
+        'message': 'ลบประเภทห้องสำเร็จ',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการลบประเภทห้อง: $e',
+      };
+    }
+  }
+
+  // ============================================
+  // ROOM CATEGORIES CRUD
+  // ============================================
+
+  /// Create room category
+  static Future<Map<String, dynamic>> createRoomCategory(
+      Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการสร้างหมวดหมู่ห้อง'
+        };
+      }
+
+      final result = await _supabase
+          .from('room_categories')
+          .insert(data)
+          .select()
+          .single();
+
+      return {
+        'success': true,
+        'message': 'เพิ่มหมวดหมู่ห้องสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการเพิ่มหมวดหมู่ห้อง: $e',
+      };
+    }
+  }
+
+  /// Update room category
+  static Future<Map<String, dynamic>> updateRoomCategory(
+      String id, Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการแก้ไขหมวดหมู่ห้อง'
+        };
+      }
+
+      final result = await _supabase
+          .from('room_categories')
+          .update(data)
+          .eq('roomcate_id', id)
+          .select()
+          .single();
+
+      return {
+        'success': true,
+        'message': 'แก้ไขหมวดหมู่ห้องสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการแก้ไขหมวดหมู่ห้อง: $e',
+      };
+    }
+  }
+
+  /// Delete room category
+  static Future<Map<String, dynamic>> deleteRoomCategory(String id) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการลบหมวดหมู่ห้อง'};
+      }
+
+      // Check if any rooms use this category
+      final roomsUsingCategory = await _supabase
+          .from('rooms')
+          .select('room_id')
+          .eq('room_category_id', id)
+          .limit(1);
+
+      if (roomsUsingCategory.isNotEmpty) {
+        return {
+          'success': false,
+          'message': 'ไม่สามารถลบได้ เนื่องจากมีห้องที่ใช้หมวดหมู่นี้อยู่',
+        };
+      }
+
+      await _supabase.from('room_categories').delete().eq('roomcate_id', id);
+
+      return {
+        'success': true,
+        'message': 'ลบหมวดหมู่ห้องสำเร็จ',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการลบหมวดหมู่ห้อง: $e',
+      };
+    }
+  }
+
+  // ============================================
+  // AMENITIES CRUD
+  // ============================================
+
+  /// Create amenity
+  static Future<Map<String, dynamic>> createAmenity(
+      Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการสร้างสิ่งอำนวยความสะดวก'
+        };
+      }
+
+      final result =
+          await _supabase.from('amenities').insert(data).select().single();
+
+      return {
+        'success': true,
+        'message': 'เพิ่มสิ่งอำนวยความสะดวกสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการเพิ่มสิ่งอำนวยความสะดวก: $e',
+      };
+    }
+  }
+
+  /// Update amenity
+  static Future<Map<String, dynamic>> updateAmenity(
+      String id, Map<String, dynamic> data) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการแก้ไขสิ่งอำนวยความสะดวก'
+        };
+      }
+
+      final result = await _supabase
+          .from('amenities')
+          .update(data)
+          .eq('amenities_id', id)
+          .select()
+          .single();
+
+      return {
+        'success': true,
+        'message': 'แก้ไขสิ่งอำนวยความสะดวกสำเร็จ',
+        'data': result,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการแก้ไขสิ่งอำนวยความสะดวก: $e',
+      };
+    }
+  }
+
+  /// Delete amenity
+  static Future<Map<String, dynamic>> deleteAmenity(String id) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการลบสิ่งอำนวยความสะดวก'
+        };
+      }
+
+      // Check if any rooms use this amenity
+      final roomsUsingAmenity = await _supabase
+          .from('room_amenities')
+          .select('room_id')
+          .eq('amenity_id', id)
+          .limit(1);
+
+      if (roomsUsingAmenity.isNotEmpty) {
+        return {
+          'success': false,
+          'message':
+              'ไม่สามารถลบได้ เนื่องจากมีห้องที่ใช้สิ่งอำนวยความสะดวกนี้อยู่',
+        };
+      }
+
+      await _supabase.from('amenities').delete().eq('amenities_id', id);
+
+      return {
+        'success': true,
+        'message': 'ลบสิ่งอำนวยความสะดวกสำเร็จ',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการลบสิ่งอำนวยความสะดวก: $e',
+      };
+    }
+  }
 }

@@ -8,9 +8,6 @@ void main() async {
   // Link Supabase Setupp
   await SupabaseConfig.initialize();
 
-  // Initialize SharedPreferences
-  // await AuthService.initializeSession();
-
   runApp(const ManagerRoomProject());
 }
 

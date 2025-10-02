@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:manager_room_project/views/superadmin/amenities_ui.dart';
 import 'package:manager_room_project/views/superadmin/room_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/room_edit_ui.dart';
+import 'package:manager_room_project/views/superadmin/roomcate_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_detail_ui.dart';
+import 'package:manager_room_project/views/superadmin/roomtype_ui.dart';
+// เพิ่ม import หน้าจัดการข้อมูลพื้นฐาน
+
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/room_service.dart';
@@ -97,7 +102,6 @@ class _RoomListUIState extends State<RoomListUI> {
         rooms = await RoomService.getRoomsByUser(branchId: _selectedBranchId);
       }
 
-      // โหลด amenities สำหรับแต่ละห้อง
       Map<String, List<Map<String, dynamic>>> amenitiesMap = {};
       for (var room in rooms) {
         try {
@@ -260,6 +264,125 @@ class _RoomListUIState extends State<RoomListUI> {
           ),
         ],
       ),
+    );
+  }
+
+  // ฟังก์ชันแสดงเมนูจัดการข้อมูลพื้นฐาน
+  void _showMasterDataMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'จัดการข้อมูลพื้นฐาน',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 16),
+            Divider(height: 1),
+            _buildMasterDataMenuItem(
+              icon: Icons.category_outlined,
+              title: 'จัดการประเภทห้อง',
+              subtitle: 'ห้องพัดลม, ห้องแอร์, Studio',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RoomTypesUI(),
+                  ),
+                ).then((_) => _loadRooms());
+              },
+            ),
+            Divider(height: 1),
+            _buildMasterDataMenuItem(
+              icon: Icons.grid_view_outlined,
+              title: 'จัดการหมวดหมู่ห้อง',
+              subtitle: 'ห้องเดี่ยว, ห้องคู่, ห้องครอบครัว',
+              color: Colors.purple,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RoomCategoriesUI(),
+                  ),
+                ).then((_) => _loadRooms());
+              },
+            ),
+            Divider(height: 1),
+            _buildMasterDataMenuItem(
+              icon: Icons.stars_outlined,
+              title: 'จัดการสิ่งอำนวยความสะดวก',
+              subtitle: 'แอร์, WiFi, ตู้เสื้อผ้า, ที่จอดรถ',
+              color: Colors.orange,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AmenitiesUI(),
+                  ),
+                ).then((_) => _loadRooms());
+              },
+            ),
+            SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMasterDataMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 24),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey[600],
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+      onTap: onTap,
     );
   }
 
@@ -557,6 +680,13 @@ class _RoomListUIState extends State<RoomListUI> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // ปุ่มจัดการข้อมูลพื้นฐาน (แสดงเฉพาะ superadmin)
+          if (_canAdd)
+            IconButton(
+              icon: Icon(Icons.settings_outlined),
+              onPressed: _showMasterDataMenu,
+              tooltip: 'จัดการข้อมูลพื้นฐาน',
+            ),
           // รวม Filter ทั้งหมดในปุ่มเดียว
           PopupMenuButton<String>(
             icon: Stack(
@@ -881,7 +1011,7 @@ class _RoomListUIState extends State<RoomListUI> {
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: DropdownButton<String>(
-                      value: _selectedBranchId ?? 'all', // ใช้ 'all' แทน null
+                      value: _selectedBranchId ?? 'all',
                       isExpanded: true,
                       items: [
                         DropdownMenuItem<String>(
@@ -1041,7 +1171,7 @@ class _RoomListUIState extends State<RoomListUI> {
                 : _canAdd
                     ? 'เริ่มต้นโดยการเพิ่มห้องพักแรก'
                     : 'ไม่มีห้องพักในสาขานี้',
-            style: TextStyle(fontSize: 14, color: Colors.white),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           if (_searchQuery.isEmpty && _canAdd)
             Padding(
@@ -1131,7 +1261,7 @@ class _RoomListUIState extends State<RoomListUI> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${room['room_category_name']}เลขที่${room['room_number'] ?? 'ไม่ระบุ'}',
+                          '${room['room_category_name']} เลขที่ ${room['room_number'] ?? 'ไม่ระบุ'}',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -1493,7 +1623,16 @@ class _RoomListUIState extends State<RoomListUI> {
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => RoomDetailUI(
+                              roomId: room['room_id'],
+                            ),
+                          ),
+                        );
+                      },
                       icon: Icon(Icons.visibility, size: 16),
                       label: Text('ดูรายละเอียด'),
                       style: OutlinedButton.styleFrom(

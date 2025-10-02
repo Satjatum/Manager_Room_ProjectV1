@@ -32,9 +32,11 @@ class IssueService {
 
       // Add filters
       if (searchQuery != null && searchQuery.isNotEmpty) {
-        query = query.or('issue_num.ilike.%$searchQuery%,'
-            'issue_title.ilike.%$searchQuery%,'
-            'issue_desc.ilike.%$searchQuery%');
+        query = query.or(
+          'issue_num.ilike.%$searchQuery%,'
+          'issue_title.ilike.%$searchQuery%,'
+          'issue_desc.ilike.%$searchQuery%',
+        );
       }
 
       if (branchId != null && branchId.isNotEmpty) {
@@ -92,16 +94,15 @@ class IssueService {
         DetailedPermission.all,
         DetailedPermission.manageIssues,
       ])) {
-        return getAllIssues(
-          branchId: branchId,
-          issueStatus: issueStatus,
-        );
+        return getAllIssues(branchId: branchId, issueStatus: issueStatus);
       }
 
       // Tenant can only see their own issues
       if (currentUser.userRole == UserRole.tenant &&
           currentUser.tenantId != null) {
-        var query = _supabase.from('issue_reports').select('''
+        var query = _supabase
+            .from('issue_reports')
+            .select('''
           *,
           rooms!inner(
             room_id,
@@ -110,7 +111,8 @@ class IssueService {
           ),
           tenants(tenant_id, tenant_fullname, tenant_phone),
           assigned_user:assigned_to(user_id, user_name, user_email)
-        ''').eq('tenant_id', currentUser.tenantId!);
+        ''')
+            .eq('tenant_id', currentUser.tenantId!);
 
         if (issueStatus != null && issueStatus.isNotEmpty) {
           query = query.eq('issue_status', issueStatus);
@@ -145,7 +147,10 @@ class IssueService {
   /// Get issue by ID
   static Future<Map<String, dynamic>?> getIssueById(String issueId) async {
     try {
-      final result = await _supabase.from('issue_reports').select('''
+      final result =
+          await _supabase
+              .from('issue_reports')
+              .select('''
         *,
         rooms!inner(
           room_id,
@@ -155,7 +160,9 @@ class IssueService {
         tenants(tenant_id, tenant_fullname, tenant_phone),
         assigned_user:assigned_to(user_id, user_name, user_email),
         created_user:created_by(user_id, user_name)
-      ''').eq('issue_id', issueId).maybeSingle();
+      ''')
+              .eq('issue_id', issueId)
+              .maybeSingle();
 
       if (result == null) return null;
 
@@ -175,14 +182,12 @@ class IssueService {
 
   /// Create new issue
   static Future<Map<String, dynamic>> createIssue(
-      Map<String, dynamic> issueData) async {
+    Map<String, dynamic> issueData,
+  ) async {
     try {
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser == null) {
-        return {
-          'success': false,
-          'message': 'กรุณาเข้าสู่ระบบใหม่',
-        };
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
       // Check permissions
@@ -191,43 +196,28 @@ class IssueService {
         DetailedPermission.manageIssues,
         DetailedPermission.createIssues,
       ])) {
-        return {
-          'success': false,
-          'message': 'ไม่มีสิทธิ์ในการรายงานปัญหา',
-        };
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการรายงานปัญหา'};
       }
 
       // Validate required fields
       if (issueData['room_id'] == null ||
           issueData['room_id'].toString().trim().isEmpty) {
-        return {
-          'success': false,
-          'message': 'กรุณาเลือกห้องพัก',
-        };
+        return {'success': false, 'message': 'กรุณาเลือกห้องพัก'};
       }
 
       if (issueData['issue_type'] == null ||
           issueData['issue_type'].toString().trim().isEmpty) {
-        return {
-          'success': false,
-          'message': 'กรุณาเลือกประเภทปัญหา',
-        };
+        return {'success': false, 'message': 'กรุณาเลือกประเภทปัญหา'};
       }
 
       if (issueData['issue_title'] == null ||
           issueData['issue_title'].toString().trim().isEmpty) {
-        return {
-          'success': false,
-          'message': 'กรุณากรอกหัวข้อปัญหา',
-        };
+        return {'success': false, 'message': 'กรุณากรอกหัวข้อปัญหา'};
       }
 
       if (issueData['issue_desc'] == null ||
           issueData['issue_desc'].toString().trim().isEmpty) {
-        return {
-          'success': false,
-          'message': 'กรุณากรอกรายละเอียดปัญหา',
-        };
+        return {'success': false, 'message': 'กรุณากรอกรายละเอียดปัญหา'};
       }
 
       // Generate issue number
@@ -246,22 +236,16 @@ class IssueService {
         'created_by': currentUser.userId,
       };
 
-      final result = await _supabase
-          .from('issue_reports')
-          .insert(insertData)
-          .select()
-          .single();
+      final result =
+          await _supabase
+              .from('issue_reports')
+              .insert(insertData)
+              .select()
+              .single();
 
-      return {
-        'success': true,
-        'message': 'รายงานปัญหาสำเร็จ',
-        'data': result,
-      };
+      return {'success': true, 'message': 'รายงานปัญหาสำเร็จ', 'data': result};
     } on PostgrestException catch (e) {
-      return {
-        'success': false,
-        'message': 'เกิดข้อผิดพลาด: ${e.message}',
-      };
+      return {'success': false, 'message': 'เกิดข้อผิดพลาด: ${e.message}'};
     } catch (e) {
       return {
         'success': false,
@@ -278,10 +262,7 @@ class IssueService {
     try {
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser == null) {
-        return {
-          'success': false,
-          'message': 'กรุณาเข้าสู่ระบบใหม่',
-        };
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
       // Check permissions
@@ -314,12 +295,13 @@ class IssueService {
         updateData['resolved_date'] = DateTime.now().toIso8601String();
       }
 
-      final result = await _supabase
-          .from('issue_reports')
-          .update(updateData)
-          .eq('issue_id', issueId)
-          .select()
-          .single();
+      final result =
+          await _supabase
+              .from('issue_reports')
+              .update(updateData)
+              .eq('issue_id', issueId)
+              .select()
+              .single();
 
       return {
         'success': true,
@@ -327,10 +309,7 @@ class IssueService {
         'data': result,
       };
     } on PostgrestException catch (e) {
-      return {
-        'success': false,
-        'message': 'เกิดข้อผิดพลาด: ${e.message}',
-      };
+      return {'success': false, 'message': 'เกิดข้อผิดพลาด: ${e.message}'};
     } catch (e) {
       return {
         'success': false,
@@ -347,36 +326,24 @@ class IssueService {
     try {
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser == null) {
-        return {
-          'success': false,
-          'message': 'กรุณาเข้าสู่ระบบใหม่',
-        };
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
       if (!currentUser.hasAnyPermission([
         DetailedPermission.all,
         DetailedPermission.manageIssues,
       ])) {
-        return {
-          'success': false,
-          'message': 'ไม่มีสิทธิ์ในการมอบหมายงาน',
-        };
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการมอบหมายงาน'};
       }
 
-      await _supabase.from('issue_reports').update({
-        'assigned_to': userId,
-        'issue_status': 'in_progress',
-      }).eq('issue_id', issueId);
+      await _supabase
+          .from('issue_reports')
+          .update({'assigned_to': userId, 'issue_status': 'in_progress'})
+          .eq('issue_id', issueId);
 
-      return {
-        'success': true,
-        'message': 'มอบหมายงานสำเร็จ',
-      };
+      return {'success': true, 'message': 'มอบหมายงานสำเร็จ'};
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'เกิดข้อผิดพลาดในการมอบหมายงาน: $e',
-      };
+      return {'success': false, 'message': 'เกิดข้อผิดพลาดในการมอบหมายงาน: $e'};
     }
   }
 
@@ -389,25 +356,17 @@ class IssueService {
     try {
       final currentUser = await AuthService.getCurrentUser();
       if (currentUser == null) {
-        return {
-          'success': false,
-          'message': 'กรุณาเข้าสู่ระบบใหม่',
-        };
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
       if (!currentUser.hasAnyPermission([
         DetailedPermission.all,
         DetailedPermission.manageIssues,
       ])) {
-        return {
-          'success': false,
-          'message': 'ไม่มีสิทธิ์ในการเปลี่ยนสถานะ',
-        };
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการเปลี่ยนสถานะ'};
       }
 
-      final updateData = {
-        'issue_status': status,
-      };
+      final updateData = {'issue_status': status};
 
       if (status == 'resolved') {
         updateData['resolved_date'] = DateTime.now().toIso8601String();
@@ -421,10 +380,7 @@ class IssueService {
           .update(updateData)
           .eq('issue_id', issueId);
 
-      return {
-        'success': true,
-        'message': 'อัปเดตสถานะสำเร็จ',
-      };
+      return {'success': true, 'message': 'อัปเดตสถานะสำเร็จ'};
     } catch (e) {
       return {
         'success': false,
@@ -435,7 +391,8 @@ class IssueService {
 
   /// Get issue images
   static Future<List<Map<String, dynamic>>> getIssueImages(
-      String issueId) async {
+    String issueId,
+  ) async {
     try {
       final result = await _supabase
           .from('issue_images')
@@ -462,10 +419,7 @@ class IssueService {
         'description': description,
       });
 
-      return {
-        'success': true,
-        'message': 'เพิ่มรูปภาพสำเร็จ',
-      };
+      return {'success': true, 'message': 'เพิ่มรูปภาพสำเร็จ'};
     } catch (e) {
       return {
         'success': false,
@@ -528,7 +482,8 @@ class IssueService {
 
   /// Search issues
   static Future<List<Map<String, dynamic>>> searchIssues(
-      String searchQuery) async {
+    String searchQuery,
+  ) async {
     try {
       if (searchQuery.trim().isEmpty) {
         return [];
@@ -540,9 +495,11 @@ class IssueService {
         *,
         rooms!inner(room_number, branches!inner(branch_name))
       ''')
-          .or('issue_num.ilike.%$searchQuery%,'
-              'issue_title.ilike.%$searchQuery%,'
-              'issue_desc.ilike.%$searchQuery%')
+          .or(
+            'issue_num.ilike.%$searchQuery%,'
+            'issue_title.ilike.%$searchQuery%,'
+            'issue_desc.ilike.%$searchQuery%',
+          )
           .order('created_at', ascending: false)
           .limit(20);
 
