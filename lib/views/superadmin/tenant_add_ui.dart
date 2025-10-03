@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../services/tenant_service.dart';
 import '../../services/room_service.dart';
 import '../../services/branch_service.dart';
@@ -28,9 +29,14 @@ class TenantAddUI extends StatefulWidget {
   State<TenantAddUI> createState() => _TenantAddUIState();
 }
 
-class _TenantAddUIState extends State<TenantAddUI> {
+class _TenantAddUIState extends State<TenantAddUI>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Tab Controller
+  late TabController _tabController;
+  int _currentTabIndex = 0;
 
   // Tenant form controllers
   final _tenantIdCardController = TextEditingController();
@@ -69,11 +75,23 @@ class _TenantAddUIState extends State<TenantAddUI> {
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
 
+  // Contract document
+  String? _documentPath;
+  String? _documentName;
+  Uint8List? _documentBytes;
+
   UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        _currentTabIndex = _tabController.index;
+      });
+    });
+
     _generateContractNumber();
 
     if (widget.branchId != null) {
@@ -85,6 +103,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _tenantIdCardController.dispose();
     _tenantFullNameController.dispose();
     _tenantPhoneController.dispose();
@@ -146,7 +165,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
     setState(() => _isLoadingData = true);
 
     try {
-      // โหลดสาขา
       final branches = await BranchService.getBranchesByUser();
 
       if (mounted) {
@@ -155,7 +173,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
           _isLoadingData = false;
         });
 
-        // ถ้ามี branchId ที่ส่งมาจาก widget ให้โหลดห้องทันที
         if (_selectedBranchId != null) {
           await _loadAvailableRooms(_selectedBranchId!);
         }
@@ -189,17 +206,27 @@ class _TenantAddUIState extends State<TenantAddUI> {
     }
   }
 
-  Future<void> _loadBranches() async {
+  // เลือกไฟล์เอกสารสัญญา
+  Future<void> _pickDocument() async {
     try {
-      final branches = await TenantService.getBranchesForTenantFilter();
-      setState(() {
-        _branches = branches;
-        if (widget.branchId != null) {
-          _selectedBranchId = widget.branchId;
-        }
-      });
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _documentPath = file.path ?? '';
+          _documentName = file.name;
+          _documentBytes = file.bytes;
+        });
+      }
     } catch (e) {
-      print('Error loading branches: $e');
+      if (mounted && context.mounted) {
+        _showErrorSnackBar('เกิดข้อผิดพลาดในการเลือกไฟล์: $e');
+      }
     }
   }
 
@@ -490,6 +517,83 @@ class _TenantAddUIState extends State<TenantAddUI> {
     );
   }
 
+  // Validation ก่อนบันทึก
+  bool _validateCurrentTab() {
+    if (_currentTabIndex == 0) {
+      // Tab ข้อมูลผู้เช่า
+      if (_tenantIdCardController.text.trim().isEmpty) {
+        _showErrorSnackBar('กรุณากรอกเลขบัตรประชาชน');
+        return false;
+      }
+      if (_tenantFullNameController.text.trim().isEmpty) {
+        _showErrorSnackBar('กรุณากรอกชื่อ-นามสกุล');
+        return false;
+      }
+      if (_tenantPhoneController.text.trim().isEmpty) {
+        _showErrorSnackBar('กรุณากรอกเบอร์โทรศัพท์');
+        return false;
+      }
+      if (_selectedBranchId == null) {
+        _showErrorSnackBar('กรุณาเลือกสาขา');
+        return false;
+      }
+    } else if (_currentTabIndex == 1) {
+      // Tab บัญชีผู้ใช้
+      if (_createUserAccount) {
+        if (_userNameController.text.trim().isEmpty) {
+          _showErrorSnackBar('กรุณากรอกชื่อผู้ใช้');
+          return false;
+        }
+        if (_userEmailController.text.trim().isEmpty) {
+          _showErrorSnackBar('กรุณากรอกอีเมล');
+          return false;
+        }
+        if (_userPasswordController.text.trim().isEmpty) {
+          _showErrorSnackBar('กรุณากรอกรหัสผ่าน');
+          return false;
+        }
+      }
+    } else if (_currentTabIndex == 2) {
+      // Tab สัญญาเช่า
+      if (_selectedRoomId == null) {
+        _showErrorSnackBar('กรุณาเลือกห้องเช่า');
+        return false;
+      }
+      if (_contractStartDate == null || _contractEndDate == null) {
+        _showErrorSnackBar('กรุณาระบุวันที่เริ่มต้นและสิ้นสุดสัญญา');
+        return false;
+      }
+      if (_contractEndDate!.isBefore(_contractStartDate!)) {
+        _showErrorSnackBar('วันที่สิ้นสุดสัญญาต้องมาหลังวันที่เริ่มต้น');
+        return false;
+      }
+      if (_contractPriceController.text.trim().isEmpty) {
+        _showErrorSnackBar('กรุณากรอกค่าเช่า');
+        return false;
+      }
+      if (_contractDepositController.text.trim().isEmpty) {
+        _showErrorSnackBar('กรุณากรอกค่าประกัน');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _nextTab() {
+    if (_validateCurrentTab()) {
+      if (_currentTabIndex < 2) {
+        _tabController.animateTo(_currentTabIndex + 1);
+      }
+    }
+  }
+
+  void _previousTab() {
+    if (_currentTabIndex > 0) {
+      _tabController.animateTo(_currentTabIndex - 1);
+    }
+  }
+
   Future<void> _saveTenant() async {
     if (_currentUser == null) {
       _showErrorSnackBar('กรุณาเข้าสู่ระบบก่อนเพิ่มผู้เช่า');
@@ -497,23 +601,16 @@ class _TenantAddUIState extends State<TenantAddUI> {
       return;
     }
 
+    // Validate all tabs
+    for (int i = 0; i <= 2; i++) {
+      setState(() => _currentTabIndex = i);
+      _tabController.animateTo(i);
+      if (!_validateCurrentTab()) {
+        return;
+      }
+    }
+
     if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (_selectedRoomId == null) {
-      _showErrorSnackBar('กรุณาเลือกห้องเช่า');
-      return;
-    }
-
-    if (_contractStartDate == null || _contractEndDate == null) {
-      _showErrorSnackBar('กรุณาระบุวันที่เริ่มต้นและสิ้นสุดสัญญา');
-      return;
-    }
-
-    // Validate contract dates
-    if (_contractEndDate!.isBefore(_contractStartDate!)) {
-      _showErrorSnackBar('วันที่สิ้นสุดสัญญาต้องมาหลังวันที่เริ่มต้น');
       return;
     }
 
@@ -594,9 +691,9 @@ class _TenantAddUIState extends State<TenantAddUI> {
         userId = userResult['data']['user_id'];
       }
 
-      // Create tenant - REMOVED tenant_code as it doesn't exist in schema
+      // Create tenant
       final tenantData = {
-        'branch_id': _selectedBranchId, // เพิ่มบรรทัดนี้
+        'branch_id': _selectedBranchId,
         'tenant_idcard': _tenantIdCardController.text.trim(),
         'tenant_fullname': _tenantFullNameController.text.trim(),
         'tenant_phone': _tenantPhoneController.text.trim(),
@@ -605,7 +702,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
         'is_active': _isActive,
         'user_id': userId,
       };
-      ;
 
       final tenantResult = await TenantService.createTenant(tenantData);
 
@@ -763,6 +859,17 @@ class _TenantAddUIState extends State<TenantAddUI> {
         backgroundColor: AppTheme.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: 'ข้อมูลผู้เช่า', icon: Icon(Icons.person)),
+            Tab(text: 'บัญชีผู้ใช้', icon: Icon(Icons.account_circle)),
+            Tab(text: 'สัญญาเช่า', icon: Icon(Icons.description)),
+          ],
+        ),
       ),
       body: _isLoading
           ? Center(
@@ -775,31 +882,67 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildProfileImageSection(),
-                    const SizedBox(height: 24),
-                    _buildTenantInfoSection(),
-                    const SizedBox(height: 24),
-                    _buildUserAccountSection(),
-                    const SizedBox(height: 24),
-                    _buildRoomSelectionSection(),
-                    const SizedBox(height: 24),
-                    _buildContractSection(),
-                    const SizedBox(height: 24),
-                    _buildStatusSection(),
-                    const SizedBox(height: 32),
-                    _buildSaveButton(),
-                    const SizedBox(height: 16),
-                  ],
-                ),
+          : Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _buildTenantInfoTab(),
+                        _buildUserAccountTab(),
+                        _buildContractTab(),
+                      ],
+                    ),
+                  ),
+                  _buildNavigationButtons(),
+                ],
               ),
             ),
+    );
+  }
+
+  Widget _buildTenantInfoTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildProfileImageSection(),
+          const SizedBox(height: 24),
+          _buildTenantInfoSection(),
+          const SizedBox(height: 24),
+          _buildStatusSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserAccountTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildUserAccountSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContractTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildRoomSelectionSection(),
+          const SizedBox(height: 24),
+          _buildContractSection(),
+          const SizedBox(height: 24),
+          _buildContractDocumentSection(),
+        ],
+      ),
     );
   }
 
@@ -1089,7 +1232,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
             ),
             const SizedBox(height: 16),
 
-            // เพิ่ม Dropdown สาขาที่นี่
+            // สาขา
             DropdownButtonFormField<String>(
               value: _selectedBranchId,
               decoration: InputDecoration(
@@ -1119,11 +1262,10 @@ class _TenantAddUIState extends State<TenantAddUI> {
               onChanged: (value) async {
                 setState(() {
                   _selectedBranchId = value;
-                  _selectedRoomId = null; // รีเซ็ตห้องที่เลือก
-                  _availableRooms = []; // ล้างรายการห้อง
+                  _selectedRoomId = null;
+                  _availableRooms = [];
                 });
 
-                // โหลดห้องใหม่ตามสาขาที่เลือก
                 if (value != null) {
                   await _loadAvailableRooms(value);
                 }
@@ -1340,7 +1482,6 @@ class _TenantAddUIState extends State<TenantAddUI> {
             ),
             const SizedBox(height: 16),
             if (_selectedBranchId == null) ...[
-              // แสดงเมื่อยังไม่ได้เลือกสาขา
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -1362,91 +1503,93 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 ),
               ),
             ],
-            DropdownButtonFormField<String>(
-              value: _selectedRoomId,
-              decoration: InputDecoration(
-                labelText: 'ห้องพัก *',
-                prefixIcon: const Icon(Icons.hotel),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            if (_selectedBranchId != null) ...[
+              DropdownButtonFormField<String>(
+                value: _selectedRoomId,
+                decoration: InputDecoration(
+                  labelText: 'ห้องพัก *',
+                  prefixIcon: const Icon(Icons.hotel),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: Color(0xff10B981), width: 2),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
+                items: _availableRooms.map((room) {
+                  return DropdownMenuItem<String>(
+                    value: room['room_id'],
+                    child: Row(
+                      children: [
+                        Text(
+                            '${room['room_category_name'] ?? 'ห้อง'} เลขที่ ${room['room_number']}'),
+                        const SizedBox(width: 8),
+                        Text(
+                          '฿${room['room_price']?.toStringAsFixed(0) ?? '0'}',
+                          style: TextStyle(
+                            color: Colors.green[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRoomId = value;
+                    if (value != null) {
+                      final selectedRoom = _availableRooms.firstWhere(
+                        (room) => room['room_id'] == value,
+                        orElse: () => {},
+                      );
+                      if (selectedRoom.isNotEmpty) {
+                        _contractPriceController.text =
+                            selectedRoom['room_price']?.toString() ?? '';
+                        _contractDepositController.text =
+                            selectedRoom['room_deposit']?.toString() ?? '';
+                      }
+                    }
+                  });
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'กรุณาเลือกห้องพัก';
+                  }
+                  return null;
+                },
               ),
-              items: _availableRooms.map((room) {
-                return DropdownMenuItem<String>(
-                  value: room['room_id'],
+              if (_availableRooms.isEmpty) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
                   child: Row(
                     children: [
-                      Text(
-                          '${room['room_category_name'] ?? 'ห้อง'} เลขที่ ${room['room_number']}'),
+                      Icon(Icons.info_outline, color: Colors.orange.shade600),
                       const SizedBox(width: 8),
-                      Text(
-                        '฿${room['room_price']?.toStringAsFixed(0) ?? '0'}',
-                        style: TextStyle(
-                          color: Colors.green[600],
-                          fontWeight: FontWeight.w500,
+                      const Expanded(
+                        child: Text(
+                          'ไม่มีห้องว่างในสาขานี้',
+                          style: TextStyle(fontSize: 13),
                         ),
                       ),
                     ],
                   ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedRoomId = value;
-                  if (value != null) {
-                    final selectedRoom = _availableRooms.firstWhere(
-                      (room) => room['room_id'] == value,
-                      orElse: () => {},
-                    );
-                    if (selectedRoom.isNotEmpty) {
-                      _contractPriceController.text =
-                          selectedRoom['room_price']?.toString() ?? '';
-                      _contractDepositController.text =
-                          selectedRoom['room_deposit']?.toString() ?? '';
-                    }
-                  }
-                });
-              },
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'กรุณาเลือกห้องพัก';
-                }
-                return null;
-              },
-            ),
-            if (_availableRooms.isEmpty && _selectedBranchId != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange.shade600),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'ไม่มีห้องว่างในสาขานี้',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ],
           ],
         ),
@@ -1467,7 +1610,7 @@ class _TenantAddUIState extends State<TenantAddUI> {
                 Icon(Icons.description, color: AppTheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'สัญญาเช่า',
+                  'รายละเอียดสัญญา',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -1762,6 +1905,83 @@ class _TenantAddUIState extends State<TenantAddUI> {
     );
   }
 
+  Widget _buildContractDocumentSection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.upload_file, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'เอกสารสัญญา',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // อัปโหลดเอกสาร
+            OutlinedButton.icon(
+              onPressed: _pickDocument,
+              icon: Icon(Icons.upload_file),
+              label: Text(
+                  _documentName ?? 'อัปโหลดเอกสารสัญญา (PDF, DOC, รูปภาพ)'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            if (_documentName != null) ...[
+              SizedBox(height: 8),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _documentName!,
+                        style: TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          _documentPath = null;
+                          _documentName = null;
+                          _documentBytes = null;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusSection() {
     return Card(
       elevation: 2,
@@ -1812,131 +2032,64 @@ class _TenantAddUIState extends State<TenantAddUI> {
     );
   }
 
-  Widget _buildSaveButton() {
-    final bool canSave = !_isLoading && !_isLoadingData;
-
-    return Column(
-      children: [
-        if (!canSave && _isLoadingData)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.blue.shade600,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'กำลังโหลดข้อมูล...',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildNavigationButtons() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
           ),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed: canSave ? _saveTenant : null,
-            icon: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Icon(Icons.save, color: Colors.white),
-            label: Text(
-              _isLoading ? 'กำลังบันทึก...' : 'บันทึกผู้เช่า',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_currentTabIndex > 0)
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _previousTab,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('ย้อนกลับ'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          if (_currentTabIndex > 0) const SizedBox(width: 16),
+          Expanded(
+            flex: _currentTabIndex > 0 ? 1 : 1,
+            child: ElevatedButton.icon(
+              onPressed: _currentTabIndex < 2 ? _nextTab : _saveTenant,
+              icon: Icon(
+                _currentTabIndex < 2 ? Icons.arrow_forward : Icons.save,
                 color: Colors.white,
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: canSave ? AppTheme.primary : Colors.grey,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              label: Text(
+                _currentTabIndex < 2 ? 'ถัดไป' : 'บันทึกข้อมูล',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
-              elevation: canSave ? 2 : 0,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-
-        // Summary card
-        if (_selectedRoomId != null && _contractStartDate != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: Colors.blue.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'สรุปการดำเนินการ',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '• สร้างข้อมูลผู้เช่า: ${_tenantFullNameController.text.isNotEmpty ? _tenantFullNameController.text : 'ยังไม่ระบุ'}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-                if (_createUserAccount)
-                  Text(
-                    '• สร้างบัญชีผู้ใช้: ${_userNameController.text.isNotEmpty ? _userNameController.text : 'ยังไม่ระบุ'}',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                if (_selectedRoomId != null) ...[
-                  Text(
-                    '• จัดสรรห้อง: ${_availableRooms.firstWhere((room) => room['room_id'] == _selectedRoomId, orElse: () => {})['room_number'] ?? 'ยังไม่ระบุ'}',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const Text(
-                    '• เปลี่ยนสถานะห้องเป็น "มีผู้เช่า"',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ],
-                Text(
-                  '• สร้างสัญญาเช่า: ${_contractNumController.text}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

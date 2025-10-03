@@ -4,7 +4,6 @@ import '../../services/contract_service.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../models/user_models.dart';
 import '../../widgets/colors.dart';
-import 'contract_add_ui.dart';
 
 class ContractListUI extends StatefulWidget {
   final String? tenantId; // ถ้ามี = แสดงเฉพาะสัญญาของผู้เช่านี้
@@ -322,102 +321,9 @@ class _ContractListUIState extends State<ContractListUI> {
               ),
             ),
           ),
-
-          // รายการสัญญา
-          Expanded(
-            child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary),
-                  )
-                : _filteredContracts.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView.builder(
-                          padding: EdgeInsets.all(16),
-                          itemCount: _filteredContracts.length,
-                          itemBuilder: (context, index) {
-                            final contract = _filteredContracts[index];
-                            return _buildContractCard(contract);
-                          },
-                        ),
-                      ),
-          ),
         ],
       ),
       // ปุ่มเพิ่มสัญญา
-      floatingActionButton: _canManage
-          ? FloatingActionButton(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ContractAddUI(
-                      tenantId: widget.tenantId,
-                    ),
-                  ),
-                );
-                if (result == true) {
-                  _loadData();
-                }
-              },
-              backgroundColor: AppTheme.primary,
-              child: Icon(Icons.add, color: Colors.white),
-              tooltip: 'สร้างสัญญาใหม่',
-            )
-          : null,
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.description_outlined, size: 80, color: Colors.grey[400]),
-          SizedBox(height: 16),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'ไม่พบสัญญาที่ค้นหา'
-                : 'ยังไม่มีสัญญาเช่า',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'ลองเปลี่ยนคำค้นหาหรือกรองสถานะ'
-                : _canManage
-                    ? 'เริ่มต้นโดยการสร้างสัญญาใหม่'
-                    : '',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          if (_searchQuery.isEmpty && _canManage) ...[
-            SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ContractAddUI(
-                      tenantId: widget.tenantId,
-                    ),
-                  ),
-                );
-                if (result == true) {
-                  _loadData();
-                }
-              },
-              icon: Icon(Icons.add),
-              label: Text('สร้างสัญญาใหม่'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 

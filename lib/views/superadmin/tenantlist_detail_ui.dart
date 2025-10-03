@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:manager_room_project/views/superadmin/contract_add_ui.dart';
+// import 'package:manager_room_project/views/superadmin/contract_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/contract_edit_ui.dart';
 import 'package:manager_room_project/views/superadmin/contractlist_detail_ui.dart';
 import 'package:manager_room_project/views/superadmin/contractlist_ui.dart';
@@ -736,43 +736,43 @@ class _TenantDetailUIState extends State<TenantDetailUI> {
                         ],
                       ),
                       // ปุ่มสร้างสัญญาใหม่
-                      if (_currentUser != null &&
-                          _currentUser!.hasAnyPermission([
-                            DetailedPermission.all,
-                            DetailedPermission.manageContracts,
-                          ])) ...[
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ContractAddUI(
-                                    tenantId: widget.tenantId,
-                                    tenantData: _tenantData,
-                                  ),
-                                ),
-                              ).then((_) => _loadData());
-                            },
-                            icon: Icon(Icons.add_circle_outline, size: 20),
-                            label: Text(
-                              'สร้างสัญญาใหม่',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              elevation: 2,
-                            ),
-                          ),
-                        ),
-                      ],
+                      // if (_currentUser != null &&
+                      //     _currentUser!.hasAnyPermission([
+                      //       DetailedPermission.all,
+                      //       DetailedPermission.manageContracts,
+                      //     ])) ...[
+                      //   const SizedBox(height: 12),
+                      //   SizedBox(
+                      //     width: double.infinity,
+                      //     child: ElevatedButton.icon(
+                      //       onPressed: () {
+                      //         Navigator.push(
+                      //           context,
+                      //           MaterialPageRoute(
+                      //             builder: (context) => ContractAddUI(
+                      //               tenantId: widget.tenantId,
+                      //               tenantData: _tenantData,
+                      //             ),
+                      //           ),
+                      //         ).then((_) => _loadData());
+                      //       },
+                      //       icon: Icon(Icons.add_circle_outline, size: 20),
+                      //       label: Text(
+                      //         'สร้างสัญญาใหม่',
+                      //         style: TextStyle(
+                      //           fontSize: 15,
+                      //           fontWeight: FontWeight.w600,
+                      //         ),
+                      //       ),
+                      //       style: ElevatedButton.styleFrom(
+                      //         backgroundColor: Colors.green,
+                      //         foregroundColor: Colors.white,
+                      //         padding: EdgeInsets.symmetric(vertical: 12),
+                      //         elevation: 2,
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ],
                     ],
                   ),
                 ),
