@@ -248,67 +248,67 @@ class _TenantDetailUIState extends State<TenantDetailUI> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          if (_currentUser != null &&
-              _currentUser!.hasAnyPermission([
-                DetailedPermission.all,
-                DetailedPermission.manageTenants,
-              ]))
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                switch (value) {
-                  case 'edit':
-                    _editTenant();
-                    break;
-                  case 'toggle_status':
-                    _toggleStatus();
-                    break;
-                  case 'delete':
-                    _deleteTenant();
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 20),
-                      SizedBox(width: 8),
-                      Text('แก้ไขข้อมูล'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'toggle_status',
-                  child: Row(
-                    children: [
-                      Icon(
-                        (_tenantData?['is_active'] ?? false)
-                            ? Icons.block
-                            : Icons.check_circle,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text((_tenantData?['is_active'] ?? false)
-                          ? 'ปิดใช้งาน'
-                          : 'เปิดใช้งาน'),
-                    ],
-                  ),
-                ),
-                if (_currentUser?.userRole == UserRole.superAdmin)
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete, size: 20, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('ลบผู้เช่า', style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+          // if (_currentUser != null &&
+          //     _currentUser!.hasAnyPermission([
+          //       DetailedPermission.all,
+          //       DetailedPermission.manageTenants,
+          //     ]))
+          //   PopupMenuButton<String>(
+          //     icon: const Icon(Icons.more_vert),
+          //     onSelected: (value) {
+          //       switch (value) {
+          //         case 'edit':
+          //           _editTenant();
+          //           break;
+          //         case 'toggle_status':
+          //           _toggleStatus();
+          //           break;
+          //         case 'delete':
+          //           _deleteTenant();
+          //           break;
+          //       }
+          //     },
+          //     itemBuilder: (context) => [
+          //       const PopupMenuItem(
+          //         value: 'edit',
+          //         child: Row(
+          //           children: [
+          //             Icon(Icons.edit, size: 20),
+          //             SizedBox(width: 8),
+          //             Text('แก้ไขข้อมูล'),
+          //           ],
+          //         ),
+          //       ),
+          //       PopupMenuItem(
+          //         value: 'toggle_status',
+          //         child: Row(
+          //           children: [
+          //             Icon(
+          //               (_tenantData?['is_active'] ?? false)
+          //                   ? Icons.block
+          //                   : Icons.check_circle,
+          //               size: 20,
+          //             ),
+          //             const SizedBox(width: 8),
+          //             Text((_tenantData?['is_active'] ?? false)
+          //                 ? 'ปิดใช้งาน'
+          //                 : 'เปิดใช้งาน'),
+          //           ],
+          //         ),
+          //       ),
+          //       if (_currentUser?.userRole == UserRole.superAdmin)
+          //         const PopupMenuItem(
+          //           value: 'delete',
+          //           child: Row(
+          //             children: [
+          //               Icon(Icons.delete, size: 20, color: Colors.red),
+          //               SizedBox(width: 8),
+          //               Text('ลบผู้เช่า', style: TextStyle(color: Colors.red)),
+          //             ],
+          //           ),
+          //         ),
+          //     ],
+          //   ),
         ],
       ),
       body: _isLoading || _isDeleting
@@ -566,82 +566,82 @@ class _TenantDetailUIState extends State<TenantDetailUI> {
                     ),
                   ),
                   // ปุ่มดูสัญญาทั้งหมด - แสดงเสมอถ้ามีสิทธิ์
-                  if (_currentUser != null &&
-                      _currentUser!.hasAnyPermission([
-                        DetailedPermission.all,
-                        DetailedPermission.manageContracts,
-                        DetailedPermission.viewContracts,
-                      ]))
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () {
-                            // ไปหน้ารายการสัญญาของผู้เช่านี้
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ContractListUI(
-                                  tenantId: widget.tenantId,
-                                  tenantName: _tenantData?['tenant_fullname'],
-                                ),
-                              ),
-                            ).then((_) => _loadData());
-                          },
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.list_alt,
-                                  size: 18,
-                                  color: AppTheme.primary,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'ดูทั้งหมด',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.primary,
-                                  ),
-                                ),
-                                if (totalContracts > 0) ...[
-                                  SizedBox(width: 4),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primary,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      '$totalContracts',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  // if (_currentUser != null &&
+                  //     _currentUser!.hasAnyPermission([
+                  //       DetailedPermission.all,
+                  //       DetailedPermission.manageContracts,
+                  //       DetailedPermission.viewContracts,
+                  //     ]))
+                  //   Container(
+                  //     decoration: BoxDecoration(
+                  //       color: AppTheme.primary.withOpacity(0.1),
+                  //       borderRadius: BorderRadius.circular(8),
+                  //     ),
+                  //     child: Material(
+                  //       color: Colors.transparent,
+                  //       child: InkWell(
+                  //         borderRadius: BorderRadius.circular(8),
+                  //         onTap: () {
+                  //           // ไปหน้ารายการสัญญาของผู้เช่านี้
+                  //           Navigator.push(
+                  //             context,
+                  //             MaterialPageRoute(
+                  //               builder: (context) => ContractListUI(
+                  //                 tenantId: widget.tenantId,
+                  //                 tenantName: _tenantData?['tenant_fullname'],
+                  //               ),
+                  //             ),
+                  //           ).then((_) => _loadData());
+                  //         },
+                  //         child: Padding(
+                  //           padding: EdgeInsets.symmetric(
+                  //             horizontal: 12,
+                  //             vertical: 6,
+                  //           ),
+                  //           child: Row(
+                  //             mainAxisSize: MainAxisSize.min,
+                  //             children: [
+                  //               Icon(
+                  //                 Icons.list_alt,
+                  //                 size: 18,
+                  //                 color: AppTheme.primary,
+                  //               ),
+                  //               SizedBox(width: 4),
+                  //               Text(
+                  //                 'ดูทั้งหมด',
+                  //                 style: TextStyle(
+                  //                   fontSize: 13,
+                  //                   fontWeight: FontWeight.w600,
+                  //                   color: AppTheme.primary,
+                  //                 ),
+                  //               ),
+                  //               if (totalContracts > 0) ...[
+                  //                 SizedBox(width: 4),
+                  //                 Container(
+                  //                   padding: EdgeInsets.symmetric(
+                  //                     horizontal: 6,
+                  //                     vertical: 2,
+                  //                   ),
+                  //                   decoration: BoxDecoration(
+                  //                     color: AppTheme.primary,
+                  //                     borderRadius: BorderRadius.circular(10),
+                  //                   ),
+                  //                   child: Text(
+                  //                     '$totalContracts',
+                  //                     style: TextStyle(
+                  //                       fontSize: 11,
+                  //                       color: Colors.white,
+                  //                       fontWeight: FontWeight.bold,
+                  //                     ),
+                  //                   ),
+                  //                 ),
+                  //               ],
+                  //             ],
+                  //           ),
+                  //         ),
+                  //       ),
+                  //     ),
+                  //   ),
                 ],
               ),
               const SizedBox(height: 16),

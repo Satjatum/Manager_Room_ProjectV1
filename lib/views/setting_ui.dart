@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:manager_room_project/views/payment_setting_ui.dart';
+import 'package:manager_room_project/views/utility_setting_ui.dart';
 import '../widgets/navbar.dart';
 import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
@@ -237,7 +239,6 @@ class _SettingUiState extends State<SettingUi> {
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    // User Avatar with status indicator
                     Stack(
                       children: [
                         CircleAvatar(
@@ -437,6 +438,118 @@ class _SettingUiState extends State<SettingUi> {
             if (currentUser!.userRole == UserRole.superAdmin)
               const SizedBox(height: 20),
 
+            // ⭐ NEW: System Settings Section
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings_applications,
+                            color: Colors.indigo[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'ตั้งค่าระบบ',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // Utility Rates Settings
+                  ListTile(
+                    leading: const Icon(Icons.bolt, color: Colors.amber),
+                    title: const Text('ตั้งค่าอัตราค่าบริการ'),
+                    subtitle: const Text('ค่าไฟฟ้า ค่าน้ำ ค่าส่วนกลาง'),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.amber[200]!),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.star, size: 14, color: Colors.amber[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'สำคัญ',
+                            style: TextStyle(
+                              color: Colors.amber[700],
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const UtilityRatesManagementUi(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  // Payment Settings (Late Fee & Discount)
+                  ListTile(
+                    leading: const Icon(Icons.account_balance_wallet,
+                        color: Colors.green),
+                    title: const Text('ตั้งค่าค่าปรับและส่วนลด'),
+                    subtitle: const Text('ค่าปรับชำระล่าช้า ส่วนลดชำระก่อน'),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[200]!),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.star, size: 14, color: Colors.green[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'สำคัญ',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PaymentSettingsUi(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
             // Session Management Card
             Card(
               elevation: 2,
@@ -546,28 +659,6 @@ class _SettingUiState extends State<SettingUi> {
 
             const SizedBox(height: 20),
 
-            // System Information
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.info_outline,
-                        color: Color(0xff10B981)),
-                    title: const Text('เกี่ยวกับแอป'),
-                    subtitle:
-                        const Text('เวอร์ชัน 2.0.0 with Enhanced Permissions'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showAboutDialog(),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
             // Logout Button
             SizedBox(
               width: double.infinity,
@@ -599,30 +690,6 @@ class _SettingUiState extends State<SettingUi> {
         ),
       ),
       bottomNavigationBar: const AppBottomNav(currentIndex: 4),
-    );
-  }
-
-  void _showAboutDialog() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'ระบบจัดการห้องเช่า',
-      applicationVersion: '2.0.0',
-      applicationIcon: const Icon(Icons.apartment_rounded,
-          size: 48, color: Color(0xff10B981)),
-      children: const [
-        Text(
-          'ระบบจัดการห้องเช่าอัจฉริยะ\n'
-          'พร้อมระบบรักษาความปลอดภัย RLS v2.0\n\n'
-          'คุณสมบัติใหม่:\n'
-          '• ระบบสิทธิ์การใช้งานแบบละเอียด\n'
-          '• ติดตามการเข้าสู่ระบบ\n'
-          '• จัดการเซสชันขั้นสูง\n'
-          '• การเข้ารหัสข้อมูลปลอดภัย\n\n'
-          'สำหรับการจัดการห้องเช่า ผู้เช่า\n'
-          'การเงิน และรายงานต่างๆ\n\n'
-          'พัฒนาด้วย Flutter & Supabase',
-        ),
-      ],
     );
   }
 }
