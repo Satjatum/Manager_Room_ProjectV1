@@ -405,17 +405,35 @@ class _SettingUiState extends State<SettingUi> {
                   ),
                 ),
               ),
-
             const SizedBox(height: 20),
-
-            // Admin Management Section (Only for SuperAdmin)
             if (currentUser!.userRole == UserRole.superAdmin)
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings_applications,
+                              color: Colors.indigo[600]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'ตั้งค่าระบบ',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Utility Rates Settings
                     ListTile(
                       leading: Icon(Icons.admin_panel_settings,
                           color: Colors.purple[600]),
@@ -431,122 +449,42 @@ class _SettingUiState extends State<SettingUi> {
                         );
                       },
                     ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.bolt, color: Colors.amber),
+                      title: const Text('ตั้งค่าอัตราค่าบริการ'),
+                      subtitle: const Text('ค่าไฟฟ้า ค่าน้ำ ค่าส่วนกลาง'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const UtilityRatesManagementUi(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                    // Payment Settings (Late Fee & Discount)
+                    ListTile(
+                      leading: const Icon(Icons.account_balance_wallet,
+                          color: Colors.green),
+                      title: const Text('ตั้งค่าค่าปรับและส่วนลด'),
+                      subtitle: const Text('ค่าปรับชำระล่าช้า ส่วนลดชำระก่อน'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PaymentSettingsUi(),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
-
-            if (currentUser!.userRole == UserRole.superAdmin)
-              const SizedBox(height: 20),
-
-            // ⭐ NEW: System Settings Section
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.settings_applications,
-                            color: Colors.indigo[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          'ตั้งค่าระบบ',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // Utility Rates Settings
-                  ListTile(
-                    leading: const Icon(Icons.bolt, color: Colors.amber),
-                    title: const Text('ตั้งค่าอัตราค่าบริการ'),
-                    subtitle: const Text('ค่าไฟฟ้า ค่าน้ำ ค่าส่วนกลาง'),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.amber[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber[200]!),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star, size: 14, color: Colors.amber[700]),
-                          const SizedBox(width: 4),
-                          Text(
-                            'สำคัญ',
-                            style: TextStyle(
-                              color: Colors.amber[700],
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const UtilityRatesManagementUi(),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  // Payment Settings (Late Fee & Discount)
-                  ListTile(
-                    leading: const Icon(Icons.account_balance_wallet,
-                        color: Colors.green),
-                    title: const Text('ตั้งค่าค่าปรับและส่วนลด'),
-                    subtitle: const Text('ค่าปรับชำระล่าช้า ส่วนลดชำระก่อน'),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green[200]!),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star, size: 14, color: Colors.green[700]),
-                          const SizedBox(width: 4),
-                          Text(
-                            'สำคัญ',
-                            style: TextStyle(
-                              color: Colors.green[700],
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PaymentSettingsUi(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
 
             const SizedBox(height: 20),
 
