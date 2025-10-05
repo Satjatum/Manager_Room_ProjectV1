@@ -4,6 +4,7 @@ import 'package:manager_room_project/views/admin/admindash_ui.dart';
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/issuelist_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
+import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
 import '../middleware/auth_middleware.dart';
@@ -116,6 +117,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'แดชบอร์ด',
       ),
       NavItem(
+        icon: Icons.business_outlined,
+        activeIcon: Icons.business,
+        label: 'สาขา',
+      ),
+      NavItem(
         icon: Icons.hotel_outlined,
         activeIcon: Icons.hotel,
         label: 'ห้องพัก',
@@ -126,9 +132,9 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'ผู้เช่า',
       ),
       NavItem(
-        icon: Icons.account_balance_wallet_outlined,
-        activeIcon: Icons.account_balance_wallet,
-        label: 'การเงิน',
+        icon: Icons.analytics_outlined,
+        activeIcon: Icons.analytics,
+        label: 'ปัญหา',
       ),
       NavItem(
         icon: Icons.settings_outlined,
@@ -138,11 +144,12 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const AdmindashUi(), // Admin Dashboard - ใส่ page ที่ถูกต้องตรงนี้
-      const BranchlistUi(), // Rooms - ใส่ page ที่ถูกต้องตรงนี้
-      const RoomListUI(), // Tenants - ใส่ page ที่ถูกต้องตรงนี้
-      const SuperadmindashUi(), // Financial - ใส่ page ที่ถูกต้องตรงนี้
-      const SettingUi(), // Settings
+      const AdmindashUi(),
+      const BranchlistUi(),
+      const RoomListUI(),
+      const TenantListUI(),
+      const IssuesListScreen(),
+      const SettingUi(),
     ];
   }
 
@@ -185,16 +192,16 @@ class _AppBottomNavState extends State<AppBottomNav> {
         activeIcon: Icons.home,
         label: 'หน้าแรก',
       ),
-      NavItem(
-        icon: Icons.receipt_long_outlined,
-        activeIcon: Icons.receipt_long,
-        label: 'บิล',
-      ),
-      NavItem(
-        icon: Icons.payment_outlined,
-        activeIcon: Icons.payment,
-        label: 'ชำระเงิน',
-      ),
+      // NavItem(
+      //   icon: Icons.receipt_long_outlined,
+      //   activeIcon: Icons.receipt_long,
+      //   label: 'บิล',
+      // ),
+      // NavItem(
+      //   icon: Icons.payment_outlined,
+      //   activeIcon: Icons.payment,
+      //   label: 'ชำระเงิน',
+      // ),
       NavItem(
         icon: Icons.report_problem_outlined,
         activeIcon: Icons.report_problem,
@@ -208,8 +215,6 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const TenantdashUi(),
-      const TenantdashUi(),
       const TenantdashUi(),
       const IssuesListScreen(),
       const SettingUi(),

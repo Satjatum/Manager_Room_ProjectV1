@@ -703,7 +703,7 @@ class _TenantListUIState extends State<TenantListUI> {
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 400,
-        mainAxisExtent: 200,
+        mainAxisExtent: 280,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -777,7 +777,6 @@ class _TenantListUIState extends State<TenantListUI> {
     final hasBranch = tenant['branch_id'] != null;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shadowColor: Colors.black12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -799,8 +798,11 @@ class _TenantListUIState extends State<TenantListUI> {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Header Row - Profile + Name + Status
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildProfileImage(
                     profileImageUrl: profileImageUrl,
@@ -811,6 +813,7 @@ class _TenantListUIState extends State<TenantListUI> {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           tenant['tenant_fullname'] ?? 'ไม่ระบุ',
@@ -818,7 +821,7 @@ class _TenantListUIState extends State<TenantListUI> {
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
@@ -843,6 +846,8 @@ class _TenantListUIState extends State<TenantListUI> {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  // Status Badge
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -881,7 +886,7 @@ class _TenantListUIState extends State<TenantListUI> {
               ),
               const SizedBox(height: 12),
 
-              // เบอร์โทร
+              // Phone Number
               Row(
                 children: [
                   Icon(Icons.phone, size: 14, color: Colors.grey[600]),
@@ -901,7 +906,7 @@ class _TenantListUIState extends State<TenantListUI> {
               ),
               const SizedBox(height: 6),
 
-              // แสดงสาขา พร้อมข้อมูลผู้ดูแล
+              // Branch Information
               Row(
                 children: [
                   Icon(
@@ -913,7 +918,7 @@ class _TenantListUIState extends State<TenantListUI> {
                   Expanded(
                     child: Row(
                       children: [
-                        Expanded(
+                        Flexible(
                           child: Text(
                             branchName,
                             style: TextStyle(
@@ -929,12 +934,12 @@ class _TenantListUIState extends State<TenantListUI> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // แสดงจำนวนผู้ดูแลสาขา (ถ้ามี)
+                        // Manager count badge
                         if (hasBranch &&
                             tenant['branch_manager_count'] != null &&
                             tenant['branch_manager_count'] > 0)
                           Container(
-                            margin: const EdgeInsets.only(left: 4),
+                            margin: const EdgeInsets.only(left: 8),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
@@ -969,6 +974,7 @@ class _TenantListUIState extends State<TenantListUI> {
                 ],
               ),
 
+              // Action Buttons
               if (canManage) ...[
                 const Divider(height: 24),
                 Row(

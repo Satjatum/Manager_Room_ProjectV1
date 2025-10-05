@@ -605,7 +605,9 @@ class _AddUserDialogState extends State<AddUserDialog> {
                             : () => Navigator.pop(context, false),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
                         ),
                         child: const Text('ยกเลิก'),
                       ),

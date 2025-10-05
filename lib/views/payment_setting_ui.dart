@@ -317,8 +317,13 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xff10B981), width: 2),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
-                                        color: AppTheme.primary, width: 2),
+                                        color: Colors.grey[300]!, width: 1),
                                   ),
                                   filled: true,
                                   fillColor: Colors.grey.shade50,
@@ -432,8 +437,13 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xff10B981), width: 2),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                    color: AppTheme.primary, width: 2),
+                                    color: Colors.grey[300]!, width: 1),
                               ),
                               filled: true,
                               fillColor: Colors.grey.shade50,
@@ -669,12 +679,14 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                     color: Colors.red,
                   ),
                   suffixText: lateFeeType == 'percentage' ? '%' : 'บาท',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -703,7 +715,12 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -731,7 +748,12 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -946,7 +968,12 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.green, width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -976,7 +1003,12 @@ class _PaymentSettingsUiState extends State<PaymentSettingsUi> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.green, width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xff10B981), width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,

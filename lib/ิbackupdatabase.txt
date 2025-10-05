@@ -1,0 +1,330 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.amenities (
+  amenities_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  amenities_name character varying NOT NULL,
+  amenities_icon character varying,
+  amenities_desc text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT amenities_pkey PRIMARY KEY (amenities_id)
+);
+CREATE TABLE public.branch_managers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  assigned_at timestamp with time zone NOT NULL DEFAULT now(),
+  assigned_by uuid,
+  CONSTRAINT branch_managers_pkey PRIMARY KEY (id),
+  CONSTRAINT branch_managers_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT branch_managers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT branch_managers_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.branches (
+  branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_code character varying NOT NULL UNIQUE,
+  branch_name character varying NOT NULL,
+  branch_image text,
+  branch_address text,
+  branch_desc jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  owner_id uuid,
+  CONSTRAINT branches_pkey PRIMARY KEY (branch_id),
+  CONSTRAINT branches_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(user_id),
+  CONSTRAINT branches_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.invoice_other_charges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_id uuid NOT NULL,
+  charge_name character varying NOT NULL,
+  charge_amount numeric NOT NULL,
+  charge_desc text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT invoice_other_charges_pkey PRIMARY KEY (id),
+  CONSTRAINT invoice_other_charges_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(invoice_id)
+);
+CREATE TABLE public.invoice_utilities (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_id uuid NOT NULL,
+  rate_id uuid NOT NULL,
+  reading_id uuid,
+  utility_name character varying NOT NULL,
+  unit_price numeric NOT NULL,
+  usage_amount numeric NOT NULL DEFAULT 0,
+  fixed_amount numeric NOT NULL DEFAULT 0,
+  additional_charge numeric NOT NULL DEFAULT 0,
+  total_amount numeric NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT invoice_utilities_pkey PRIMARY KEY (id),
+  CONSTRAINT invoice_utilities_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(invoice_id),
+  CONSTRAINT invoice_utilities_rate_id_fkey FOREIGN KEY (rate_id) REFERENCES public.utility_rates(rate_id),
+  CONSTRAINT invoice_utilities_reading_id_fkey FOREIGN KEY (reading_id) REFERENCES public.meter_readings(reading_id)
+);
+CREATE TABLE public.invoices (
+  invoice_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_number character varying NOT NULL UNIQUE,
+  contract_id uuid NOT NULL,
+  room_id uuid NOT NULL,
+  tenant_id uuid NOT NULL,
+  invoice_month integer NOT NULL CHECK (invoice_month >= 1 AND invoice_month <= 12),
+  invoice_year integer NOT NULL CHECK (invoice_year >= 2000),
+  rental_amount numeric NOT NULL,
+  utilities_amount numeric NOT NULL DEFAULT 0,
+  other_charges numeric NOT NULL DEFAULT 0,
+  discount_type character varying CHECK (discount_type::text = ANY (ARRAY['none'::character varying, 'early_payment'::character varying, 'custom'::character varying]::text[])),
+  discount_amount numeric NOT NULL DEFAULT 0,
+  discount_reason text,
+  late_fee_amount numeric NOT NULL DEFAULT 0,
+  late_fee_days integer DEFAULT 0,
+  subtotal numeric NOT NULL,
+  total_amount numeric NOT NULL,
+  invoice_status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (invoice_status::text = ANY (ARRAY['pending'::character varying, 'partial'::character varying, 'paid'::character varying, 'overdue'::character varying, 'cancelled'::character varying]::text[])),
+  paid_amount numeric NOT NULL DEFAULT 0,
+  due_date date NOT NULL,
+  issue_date date NOT NULL DEFAULT CURRENT_DATE,
+  paid_date date,
+  invoice_notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT invoices_pkey PRIMARY KEY (invoice_id),
+  CONSTRAINT invoices_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
+  CONSTRAINT invoices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
+  CONSTRAINT invoices_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id),
+  CONSTRAINT invoices_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.rental_contracts(contract_id)
+);
+CREATE TABLE public.issue_images (
+  image_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  issue_id uuid NOT NULL,
+  image_url text NOT NULL,
+  description text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT issue_images_pkey PRIMARY KEY (image_id),
+  CONSTRAINT issue_images_issue_id_fkey FOREIGN KEY (issue_id) REFERENCES public.issue_reports(issue_id)
+);
+CREATE TABLE public.issue_reports (
+  issue_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  issue_num character varying NOT NULL UNIQUE,
+  room_id uuid,
+  tenant_id uuid,
+  issue_type character varying NOT NULL CHECK (issue_type::text = ANY (ARRAY['repair'::character varying, 'maintenance'::character varying, 'complaint'::character varying, 'suggestion'::character varying, 'other'::character varying]::text[])),
+  issue_priority character varying NOT NULL DEFAULT 'medium'::character varying CHECK (issue_priority::text = ANY (ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying, 'urgent'::character varying]::text[])),
+  issue_title character varying NOT NULL,
+  issue_desc text NOT NULL,
+  issue_status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (issue_status::text = ANY (ARRAY['pending'::character varying, 'in_progress'::character varying, 'resolved'::character varying, 'cancelled'::character varying]::text[])),
+  assigned_to uuid,
+  resolved_date timestamp with time zone,
+  resolution_notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT issue_reports_pkey PRIMARY KEY (issue_id),
+  CONSTRAINT issue_reports_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
+  CONSTRAINT issue_reports_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
+  CONSTRAINT issue_reports_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(user_id),
+  CONSTRAINT issue_reports_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.meter_readings (
+  reading_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  room_id uuid NOT NULL,
+  rate_id uuid NOT NULL,
+  reading_month integer NOT NULL CHECK (reading_month >= 1 AND reading_month <= 12),
+  reading_year integer NOT NULL CHECK (reading_year >= 2000),
+  previous_reading numeric NOT NULL DEFAULT 0,
+  current_reading numeric NOT NULL,
+  usage_amount numeric DEFAULT (current_reading - previous_reading),
+  reading_date date NOT NULL,
+  reading_image text,
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT meter_readings_pkey PRIMARY KEY (reading_id),
+  CONSTRAINT meter_readings_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
+  CONSTRAINT meter_readings_rate_id_fkey FOREIGN KEY (rate_id) REFERENCES public.utility_rates(rate_id),
+  CONSTRAINT meter_readings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.payment_settings (
+  setting_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid UNIQUE,
+  enable_late_fee boolean NOT NULL DEFAULT false,
+  late_fee_type character varying CHECK (late_fee_type::text = ANY (ARRAY['fixed'::character varying, 'percentage'::character varying, 'daily'::character varying]::text[])),
+  late_fee_amount numeric DEFAULT 0,
+  late_fee_start_day integer DEFAULT 1,
+  late_fee_max_amount numeric,
+  enable_discount boolean NOT NULL DEFAULT false,
+  early_payment_discount numeric DEFAULT 0,
+  early_payment_days integer DEFAULT 0,
+  setting_desc text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payment_settings_pkey PRIMARY KEY (setting_id),
+  CONSTRAINT payment_settings_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT payment_settings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.payments (
+  payment_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  payment_number character varying NOT NULL UNIQUE,
+  invoice_id uuid,
+  tenant_id uuid,
+  payment_date timestamp with time zone NOT NULL,
+  payment_amount numeric NOT NULL,
+  payment_method character varying NOT NULL CHECK (payment_method::text = ANY (ARRAY['cash'::character varying, 'transfer'::character varying, 'credit_card'::character varying, 'promptpay'::character varying, 'other'::character varying]::text[])),
+  reference_number character varying,
+  payment_slip_image text,
+  payment_status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (payment_status::text = ANY (ARRAY['pending'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])),
+  verified_by uuid,
+  verified_date timestamp with time zone,
+  payment_notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payments_pkey PRIMARY KEY (payment_id),
+  CONSTRAINT payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
+  CONSTRAINT payments_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.users(user_id),
+  CONSTRAINT payments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.rental_contracts (
+  contract_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  contract_num character varying NOT NULL UNIQUE,
+  room_id uuid,
+  tenant_id uuid,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  contract_price numeric NOT NULL,
+  contract_deposit numeric NOT NULL,
+  contract_paid boolean NOT NULL DEFAULT false,
+  payment_day integer CHECK (payment_day >= 1 AND payment_day <= 31),
+  contract_status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (contract_status::text = ANY (ARRAY['active'::character varying, 'expired'::character varying, 'terminated'::character varying, 'pending'::character varying]::text[])),
+  contract_document text,
+  contract_note text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT rental_contracts_pkey PRIMARY KEY (contract_id),
+  CONSTRAINT rental_contracts_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
+  CONSTRAINT rental_contracts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
+  CONSTRAINT rental_contracts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.room_amenities (
+  room_id uuid NOT NULL,
+  amenity_id uuid NOT NULL,
+  CONSTRAINT room_amenities_pkey PRIMARY KEY (amenity_id, room_id),
+  CONSTRAINT room_amenities_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
+  CONSTRAINT room_amenities_amenity_id_fkey FOREIGN KEY (amenity_id) REFERENCES public.amenities(amenities_id)
+);
+CREATE TABLE public.room_categories (
+  roomcate_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  roomcate_name character varying NOT NULL,
+  roomcate_desc text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT room_categories_pkey PRIMARY KEY (roomcate_id)
+);
+CREATE TABLE public.room_images (
+  image_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  room_id uuid NOT NULL,
+  image_url text NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT room_images_pkey PRIMARY KEY (image_id),
+  CONSTRAINT room_images_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id)
+);
+CREATE TABLE public.room_types (
+  roomtype_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  roomtype_name character varying NOT NULL,
+  roomtype_desc text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT room_types_pkey PRIMARY KEY (roomtype_id)
+);
+CREATE TABLE public.rooms (
+  room_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid,
+  room_number character varying NOT NULL,
+  room_type_id uuid,
+  room_category_id uuid,
+  room_size numeric,
+  room_price numeric NOT NULL,
+  room_deposit numeric NOT NULL,
+  room_status character varying NOT NULL DEFAULT 'available'::character varying CHECK (room_status::text = ANY (ARRAY['available'::character varying, 'occupied'::character varying, 'maintenance'::character varying, 'reserved'::character varying]::text[])),
+  room_desc text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT rooms_pkey PRIMARY KEY (room_id),
+  CONSTRAINT rooms_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT rooms_room_type_id_fkey FOREIGN KEY (room_type_id) REFERENCES public.room_types(roomtype_id),
+  CONSTRAINT rooms_room_category_id_fkey FOREIGN KEY (room_category_id) REFERENCES public.room_categories(roomcate_id),
+  CONSTRAINT rooms_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.tenants (
+  tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  tenant_idcard character varying NOT NULL UNIQUE,
+  tenant_fullname character varying NOT NULL,
+  tenant_phone character varying NOT NULL,
+  gender character varying CHECK (gender::text = ANY (ARRAY['male'::character varying, 'female'::character varying, 'other'::character varying]::text[])),
+  tenant_profile text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  branch_id uuid,
+  CONSTRAINT tenants_pkey PRIMARY KEY (tenant_id),
+  CONSTRAINT tenants_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT tenants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT tenants_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.user_sessions (
+  session_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL UNIQUE,
+  expires_at timestamp with time zone NOT NULL,
+  last_activity timestamp with time zone NOT NULL DEFAULT now(),
+  user_agent text,
+  ip_address inet,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_sessions_pkey PRIMARY KEY (session_id),
+  CONSTRAINT user_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.users (
+  user_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_name character varying NOT NULL UNIQUE,
+  user_email character varying NOT NULL UNIQUE,
+  user_pass text NOT NULL,
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['superadmin'::character varying, 'admin'::character varying, 'user'::character varying, 'tenant'::character varying]::text[])),
+  permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  last_login timestamp with time zone,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT users_pkey PRIMARY KEY (user_id),
+  CONSTRAINT users_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.utility_rates (
+  rate_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid,
+  rate_name character varying NOT NULL,
+  rate_price numeric NOT NULL,
+  rate_unit character varying NOT NULL,
+  is_metered boolean NOT NULL DEFAULT true,
+  is_fixed boolean NOT NULL DEFAULT false,
+  fixed_amount numeric DEFAULT 0,
+  additional_charge numeric DEFAULT 0,
+  rate_desc text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT utility_rates_pkey PRIMARY KEY (rate_id),
+  CONSTRAINT utility_rates_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT utility_rates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);

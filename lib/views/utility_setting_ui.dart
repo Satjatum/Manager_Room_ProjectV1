@@ -163,12 +163,17 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: AppTheme.primary, width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
                       ),
-                      prefixIcon: const Icon(Icons.label),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
+                      prefixIcon: const Icon(Icons.label),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -333,59 +338,59 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
 
                   // ฟิลด์สำหรับค่าบริการแบบมิเตอร์
                   if (isMetered) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: priceController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'^\d*\.?\d*')),
-                            ],
-                            decoration: InputDecoration(
-                              labelText: 'ราคาต่อหน่วย (บาท) *',
-                              prefixIcon: const Icon(Icons.attach_money),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: AppTheme.primary, width: 2),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: TextFormField(
-                            controller: unitController,
-                            decoration: InputDecoration(
-                              labelText: 'หน่วย *',
-                              hintText: 'kWh',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: AppTheme.primary, width: 2),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                            ),
-                          ),
-                        ),
+                    TextFormField(
+                      controller: priceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d*')),
                       ],
+                      decoration: InputDecoration(
+                        labelText: 'ราคา',
+                        prefixIcon: const Icon(Icons.attach_money),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xff10B981), width: 2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Colors.grey[300]!, width: 1),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
                     ),
                     const SizedBox(height: 16),
+                    TextFormField(
+                      controller: unitController,
+                      decoration: InputDecoration(
+                        labelText: 'หน่วย',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xff10B981), width: 2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Colors.grey[300]!, width: 1),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
+                    ),
                   ],
+
+                  const SizedBox(height: 16),
 
                   // ฟิลด์สำหรับค่าบริการแบบคงที่
                   if (isFixed) ...[
@@ -398,15 +403,20 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                             RegExp(r'^\d*\.?\d*')),
                       ],
                       decoration: InputDecoration(
-                        labelText: 'จำนวนเงินคงที่ (บาท) *',
-                        prefixIcon: const Icon(Icons.money),
+                        labelText: 'ราคา',
+                        prefixIcon: const Icon(Icons.attach_money),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xff10B981), width: 2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              BorderSide(color: AppTheme.primary, width: 2),
+                              BorderSide(color: Colors.grey[300]!, width: 1),
                         ),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -416,15 +426,19 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                     TextFormField(
                       controller: unitController,
                       decoration: InputDecoration(
-                        labelText: 'หน่วยเวลา',
-                        hintText: 'เช่น เดือน',
+                        labelText: 'หน่วย',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xff10B981), width: 2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                           borderSide:
-                              BorderSide(color: AppTheme.primary, width: 2),
+                              BorderSide(color: Colors.grey[300]!, width: 1),
                         ),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -442,7 +456,7 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     ],
                     decoration: InputDecoration(
-                      labelText: 'ค่าใช้จ่ายเพิ่มเติม (บาท)',
+                      labelText: 'ค่าใช้จ่ายเพิ่มเติม',
                       hintText: 'ถ้าไม่มีใส่ 0',
                       prefixIcon: const Icon(Icons.add_circle_outline),
                       border: OutlineInputBorder(
@@ -450,8 +464,13 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xff10B981), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            BorderSide(color: AppTheme.primary, width: 2),
+                            BorderSide(color: Colors.grey[300]!, width: 1),
                       ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
@@ -769,8 +788,13 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: Color(0xff10B981), width: 2),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                   borderSide: BorderSide(
-                                      color: AppTheme.primary, width: 2),
+                                      color: Colors.grey[300]!, width: 1),
                                 ),
                                 filled: true,
                                 fillColor: Colors.grey.shade50,
@@ -837,31 +861,6 @@ class _UtilityRatesManagementUiState extends State<UtilityRatesManagementUi> {
                     ),
                   ),
 
-                // ข้อมูลแจ้งเตือน
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.amber.shade700),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'ตั้งค่าอัตราค่าบริการก่อนออกบิล เพื่อให้ระบบคำนวณค่าใช้จ่ายได้ถูกต้อง',
-                          style: TextStyle(
-                            color: Colors.amber.shade900,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
 
                 // รายการอัตราค่าบริการ
