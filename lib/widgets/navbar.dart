@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:manager_room_project/views/admin/admindash_ui.dart';
 import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/issuelist_ui.dart';
+import 'package:manager_room_project/views/superadmin/meterlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
@@ -95,6 +96,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'ปัญหา',
       ),
       NavItem(
+        icon: Icons.analytics_outlined,
+        activeIcon: Icons.analytics,
+        label: 'มิเตอร์',
+      ),
+      NavItem(
         icon: Icons.settings_outlined,
         activeIcon: Icons.settings,
         label: 'ตั้งค่า',
@@ -105,6 +111,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
       const SuperadmindashUi(), // Dashboard
       const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
       const IssuesListScreen(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
+      const MeterReadingsListPage(), // Meters - ใส่ page ที่ถูกต้องตรงนี้
       const SettingUi(), // Settings
     ];
   }

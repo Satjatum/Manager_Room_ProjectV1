@@ -1,7 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/auth_service.dart';
+import '../models/user_models.dart';
 
 class UtilityRatesService {
-  static final _supabase = Supabase.instance.client;
+  static final SupabaseClient _supabase = Supabase.instance.client;
 
   // ============================================
   // READ OPERATIONS
@@ -84,19 +86,18 @@ class UtilityRatesService {
   // ============================================
 
   /// สร้างอัตราค่าบริการใหม่
-  static Future<Map<String, dynamic>> createUtilityRate({
-    required String branchId,
-    required String rateName,
-    required double ratePrice,
-    required String rateUnit,
-    required bool isMetered,
-    required bool isFixed,
-    double fixedAmount = 0,
-    double additionalCharge = 0,
-    String? rateDesc,
-    bool isActive = true,
-    String? createdBy,
-  }) async {
+  static Future<Map<String, dynamic>> createUtilityRate(
+      {required String branchId,
+      required String rateName,
+      required double ratePrice,
+      required String rateUnit,
+      required bool isMetered,
+      required bool isFixed,
+      double fixedAmount = 0,
+      double additionalCharge = 0,
+      String? rateDesc,
+      bool isActive = true,
+      String? createdBy}) async {
     try {
       // Validation
       if (rateName.trim().isEmpty) {
@@ -122,7 +123,7 @@ class UtilityRatesService {
         'additional_charge': additionalCharge,
         'rate_desc': rateDesc?.trim(),
         'is_active': isActive,
-        'created_by': createdBy,
+        'created_by': createdBy
       };
 
       final response =

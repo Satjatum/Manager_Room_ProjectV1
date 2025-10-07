@@ -28,17 +28,23 @@ enum DetailedPermission {
   manageIssues,
   manageBranches,
   manageUsers,
+  manageMeterReadings, // เพิ่มใหม่สำหรับบันทึกค่ามิเตอร์
+  manageUtilityRates, // เพิ่มใหม่สำหรับอัตราค่าสาธารณูปโภค
+  manageInvoices, // เพิ่มใหม่สำหรับจัดการใบแจ้งหนี้
 
   // User permissions
   viewRooms,
   viewTenants,
   viewContracts,
+  viewMeterReadings, // เพิ่มใหม่สำหรับดูค่ามิเตอร์
+  createMeterReadings, // เพิ่มใหม่สำหรับสร้างค่ามิเตอร์
 
   // Tenant permissions
   viewOwnData,
   createIssues,
   viewInvoices,
   makePayments,
+  viewOwnMeterReadings, // เพิ่มใหม่สำหรับผู้เช่าดูค่ามิเตอร์ของตัวเอง
 
   // Additional specific permissions
   viewFinancials,
@@ -212,6 +218,15 @@ class UserModel {
         case 'manage_users':
           permissions.add(DetailedPermission.manageUsers);
           break;
+        case 'manage_meter_readings': // เพิ่มใหม่
+          permissions.add(DetailedPermission.manageMeterReadings);
+          break;
+        case 'manage_utility_rates': // เพิ่มใหม่
+          permissions.add(DetailedPermission.manageUtilityRates);
+          break;
+        case 'manage_invoices': // เพิ่มใหม่
+          permissions.add(DetailedPermission.manageInvoices);
+          break;
         case 'view_rooms':
           permissions.add(DetailedPermission.viewRooms);
           break;
@@ -220,6 +235,12 @@ class UserModel {
           break;
         case 'view_contracts':
           permissions.add(DetailedPermission.viewContracts);
+          break;
+        case 'view_meter_readings': // เพิ่มใหม่
+          permissions.add(DetailedPermission.viewMeterReadings);
+          break;
+        case 'create_meter_readings': // เพิ่มใหม่
+          permissions.add(DetailedPermission.createMeterReadings);
           break;
         case 'view_own_data':
           permissions.add(DetailedPermission.viewOwnData);
@@ -232,6 +253,9 @@ class UserModel {
           break;
         case 'make_payments':
           permissions.add(DetailedPermission.makePayments);
+          break;
+        case 'view_own_meter_readings': // เพิ่มใหม่
+          permissions.add(DetailedPermission.viewOwnMeterReadings);
           break;
         case 'view_financials':
           permissions.add(DetailedPermission.viewFinancials);
@@ -275,6 +299,46 @@ class UserModel {
       DetailedPermission.all,
       DetailedPermission.viewReports,
       DetailedPermission.viewFinancials,
+    ]);
+  }
+
+  // เพิ่มฟังก์ชันตรวจสอบสิทธิ์สำหรับระบบมิเตอร์
+  bool canManageMeterReadings() {
+    return hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageMeterReadings,
+    ]);
+  }
+
+  bool canCreateMeterReadings() {
+    return hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageMeterReadings,
+      DetailedPermission.createMeterReadings,
+    ]);
+  }
+
+  bool canViewMeterReadings() {
+    return hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageMeterReadings,
+      DetailedPermission.viewMeterReadings,
+      DetailedPermission.createMeterReadings,
+      DetailedPermission.viewOwnMeterReadings,
+    ]);
+  }
+
+  bool canManageUtilityRates() {
+    return hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageUtilityRates,
+    ]);
+  }
+
+  bool canManageInvoices() {
+    return hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageInvoices,
     ]);
   }
 
@@ -350,12 +414,22 @@ class UserModel {
           return 'จัดการสาขา';
         case DetailedPermission.manageUsers:
           return 'จัดการผู้ใช้';
+        case DetailedPermission.manageMeterReadings: // เพิ่มใหม่
+          return 'จัดการค่ามิเตอร์';
+        case DetailedPermission.manageUtilityRates: // เพิ่มใหม่
+          return 'จัดการอัตราค่าสาธารณูปโภค';
+        case DetailedPermission.manageInvoices: // เพิ่มใหม่
+          return 'จัดการใบแจ้งหนี้';
         case DetailedPermission.viewRooms:
           return 'ดูข้อมูลห้องพัก';
         case DetailedPermission.viewTenants:
           return 'ดูข้อมูลผู้เช่า';
         case DetailedPermission.viewContracts:
           return 'ดูข้อมูลสัญญา';
+        case DetailedPermission.viewMeterReadings: // เพิ่มใหม่
+          return 'ดูข้อมูลค่ามิเตอร์';
+        case DetailedPermission.createMeterReadings: // เพิ่มใหม่
+          return 'สร้างค่ามิเตอร์';
         case DetailedPermission.viewOwnData:
           return 'ดูข้อมูลส่วนตัว';
         case DetailedPermission.createIssues:
@@ -364,6 +438,8 @@ class UserModel {
           return 'ดูใบแจ้งหนี้';
         case DetailedPermission.makePayments:
           return 'ชำระเงิน';
+        case DetailedPermission.viewOwnMeterReadings: // เพิ่มใหม่
+          return 'ดูค่ามิเตอร์ส่วนตัว';
         case DetailedPermission.viewFinancials:
           return 'ดูข้อมูลการเงิน';
         case DetailedPermission.managePayments:
