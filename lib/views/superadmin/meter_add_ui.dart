@@ -7,13 +7,12 @@ import 'dart:typed_data';
 import '../../services/meter_service.dart';
 import '../../services/branch_service.dart';
 import '../../services/image_service.dart';
-import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_models.dart';
 import '../../widgets/colors.dart';
 
 class MeterReadingFormPage extends StatefulWidget {
-  final String? readingId; // null = create, not null = edit
+  final String? readingId;
 
   const MeterReadingFormPage({Key? key, this.readingId}) : super(key: key);
 
@@ -23,6 +22,9 @@ class MeterReadingFormPage extends StatefulWidget {
 
 class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
   final _formKey = GlobalKey<FormState>();
+
+  final _waterPreviousController = TextEditingController();
+  final _electricPreviousController = TextEditingController();
   final _waterCurrentController = TextEditingController();
   final _electricCurrentController = TextEditingController();
   final _notesController = TextEditingController();
@@ -32,23 +34,23 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
   bool _isLoadingActiveRooms = false;
   bool _isCheckingAuth = true;
 
-  // ข้อมูลฟอร์ม
+  // สำหรับ Initial Reading
+  bool _isInitialReading = false;
+  bool _hasCheckedInitialReading = false;
+
   String? _selectedBranchId;
   String? _selectedRoomId;
   String? _selectedTenantId;
   String? _selectedContractId;
-  int _selectedMonth = DateTime.now().month;
-  int _selectedYear = DateTime.now().year;
+  int? _selectedMonth; // เปลี่ยนเป็น nullable
+  int? _selectedYear; // เปลี่ยนเป็น nullable
   DateTime _selectedDate = DateTime.now();
 
-  // ข้อมูลอ้างอิง
   List<Map<String, dynamic>> _branches = [];
   List<Map<String, dynamic>> _activeRooms = [];
-  Map<String, dynamic>? _lastReading;
-  Map<String, dynamic>? _existingReading; // สำหรับ edit mode
+  Map<String, dynamic>? _existingReading;
   UserModel? _currentUser;
 
-  // รูปภาพ - รองรับทั้ง Web และ Mobile
   File? _waterMeterImage;
   File? _electricMeterImage;
   Uint8List? _waterMeterImageBytes;
@@ -68,13 +70,14 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
 
   @override
   void dispose() {
+    _waterPreviousController.dispose();
+    _electricPreviousController.dispose();
     _waterCurrentController.dispose();
     _electricCurrentController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  // โหลดข้อมูลเริ่มต้น
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
 
@@ -83,7 +86,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
       if (_currentUser != null) {
         await _loadBranches();
 
-        // ถ้าเป็น edit mode
         if (widget.readingId != null) {
           await _loadExistingReading();
         }
@@ -116,13 +118,11 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
   }
 
-  // โหลดสาขา
   Future<void> _loadBranches() async {
     try {
       final branches = await BranchService.getBranchesByUser();
       setState(() => _branches = branches);
 
-      // ถ้ามีสาขาเดียว ให้เลือกอัตโนมัติ
       if (branches.length == 1) {
         _selectedBranchId = branches.first['branch_id'];
         await _loadActiveRooms();
@@ -132,7 +132,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
   }
 
-  // โหลดข้อมูลที่มีอยู่ (edit mode)
   Future<void> _loadExistingReading() async {
     try {
       final reading =
@@ -147,11 +146,18 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           _selectedMonth = reading['reading_month'];
           _selectedYear = reading['reading_year'];
           _selectedDate = DateTime.parse(reading['reading_date']);
+          _isInitialReading = reading['is_initial_reading'] ?? false;
 
+          _waterPreviousController.text =
+              reading['water_previous_reading']?.toString() ?? '0';
           _waterCurrentController.text =
               reading['water_current_reading']?.toString() ?? '';
+
+          _electricPreviousController.text =
+              reading['electric_previous_reading']?.toString() ?? '0';
           _electricCurrentController.text =
               reading['electric_current_reading']?.toString() ?? '';
+
           _notesController.text = reading['reading_notes'] ?? '';
 
           _waterMeterImageUrl = reading['water_meter_image'];
@@ -161,11 +167,10 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         await _loadActiveRooms();
       }
     } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูลค่ามิเตอร์: $e');
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูลมิเตอร์: $e');
     }
   }
 
-  // โหลดห้องที่มีสัญญา active
   Future<void> _loadActiveRooms() async {
     if (_selectedBranchId == null) return;
 
@@ -183,19 +188,207 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
   }
 
-  Future<void> _loadLastReading() async {
-    if (_selectedRoomId == null) return;
+  // ตรวจสอบว่าเป็นการบันทึกครั้งแรกหรือไม่
+  Future<void> _checkIfFirstReading() async {
+    if (_selectedRoomId == null || widget.readingId != null) {
+      setState(() {
+        _hasCheckedInitialReading = false;
+        _isInitialReading = false;
+      });
+      return;
+    }
 
     try {
-      final lastReading =
-          await MeterReadingService.getLastMeterReading(_selectedRoomId!);
-      setState(() => _lastReading = lastReading);
+      // ตรวจสอบว่ามี Initial Reading หรือไม่
+      final initialReading =
+          await MeterReadingService.getInitialReading(_selectedRoomId!);
+
+      final isFirstReading = (initialReading == null);
+
+      setState(() {
+        _isInitialReading = isFirstReading;
+        _hasCheckedInitialReading = true;
+      });
+
+      if (isFirstReading) {
+        // ครั้งแรก - แสดง Alert
+        if (mounted) {
+          _showInitialReadingDialog();
+        }
+      } else {
+        // ครั้งที่ 2+ - ดึงค่าจาก Initial Reading มาเป็นค่าก่อนหน้า
+        if (mounted) {
+          setState(() {
+            _waterPreviousController.text =
+                initialReading['water_current_reading']?.toString() ?? '0';
+            _electricPreviousController.text =
+                initialReading['electric_current_reading']?.toString() ?? '0';
+          });
+
+          // แสดง Info ว่าดึงค่ามาจากไหน
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ดึงค่าก่อนหน้าจากการบันทึกฐานเริ่มต้นแล้ว',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     } catch (e) {
-      debugPrint('Error loading last reading: $e');
+      print('Error checking first reading: $e');
+      setState(() {
+        _hasCheckedInitialReading = false;
+        _isInitialReading = false;
+      });
     }
   }
 
-  // เลือกรูปภาพ - รองรับทั้ง Web และ Mobile
+  void _showInitialReadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.flag, color: Colors.blue, size: 28),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'การบันทึกครั้งแรก',
+                style: TextStyle(fontSize: 20),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '🎉 นี่เป็นการบันทึกค่ามิเตอร์ครั้งแรกของห้องนี้',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text('การบันทึกครั้งแรกจะมีลักษณะพิเศษ:'),
+                  SizedBox(height: 8),
+                  _buildInfoRow('✓', 'ค่าที่กรอกจะเป็นฐานเริ่มต้น'),
+                  _buildInfoRow('✓', 'ไม่มีการคำนวณการใช้งาน (0 หน่วย)'),
+                  _buildInfoRow('✓', 'ไม่นับเป็นเดือน'),
+                  _buildInfoRow('✓', 'ไม่ออกบิล'),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline,
+                            color: Colors.amber.shade700, size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'จะเริ่มนับการใช้งานจริงในเดือนถัดไป',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.amber.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text('เข้าใจแล้ว'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String icon, String text) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4, left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            icon,
+            style: TextStyle(
+              color: Colors.green,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Auto-fill ค่าก่อนหน้า = ค่าปัจจุบัน
+  void _syncPreviousWithCurrent() {
+    if (_isInitialReading) {
+      setState(() {
+        _waterPreviousController.text = _waterCurrentController.text;
+        _electricPreviousController.text = _electricCurrentController.text;
+      });
+    }
+  }
+
+  double _calculateUsage(String previousText, String currentText) {
+    if (_isInitialReading) return 0.0;
+
+    final previous = double.tryParse(previousText) ?? 0.0;
+    final current = double.tryParse(currentText) ?? 0.0;
+    return current - previous;
+  }
+
   Future<void> _pickImage(String meterType) async {
     try {
       if (kIsWeb) {
@@ -226,12 +419,12 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             _waterMeterImageBytes = bytes;
             _waterMeterImageName = name;
             _waterMeterImage = null;
-            _waterMeterImageUrl = null; // ล้าง URL เดิม
+            _waterMeterImageUrl = null;
           } else {
             _electricMeterImageBytes = bytes;
             _electricMeterImageName = name;
             _electricMeterImage = null;
-            _electricMeterImageUrl = null; // ล้าง URL เดิม
+            _electricMeterImageUrl = null;
           }
         });
       }
@@ -351,12 +544,12 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             _waterMeterImage = file;
             _waterMeterImageBytes = null;
             _waterMeterImageName = null;
-            _waterMeterImageUrl = null; // ล้าง URL เดิม
+            _waterMeterImageUrl = null;
           } else {
             _electricMeterImage = file;
             _electricMeterImageBytes = null;
             _electricMeterImageName = null;
-            _electricMeterImageUrl = null; // ล้าง URL เดิม
+            _electricMeterImageUrl = null;
           }
         });
       }
@@ -424,7 +617,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
   }
 
-  // ลบรูปภาพ
   void _removeImage(String meterType) {
     setState(() {
       if (meterType == 'water') {
@@ -449,8 +641,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     );
   }
 
-  // บันทึกข้อมูล
-  // บันทึกข้อมูล - ส่วนที่แก้ไขเฉพาะ _saveReading() method
   Future<void> _saveReading() async {
     if (_currentUser == null) {
       _showErrorSnackBar('กรุณาเข้าสู่ระบบก่อนเพิ่มข้อมูล');
@@ -459,6 +649,22 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
 
     if (!_formKey.currentState!.validate()) return;
+
+    // Validation พิเศษสำหรับ Initial Reading
+    if (_isInitialReading) {
+      // ไม่ต้องเลือกเดือน/ปี สำหรับบันทึกครั้งแรก
+      if (_waterCurrentController.text.isEmpty &&
+          _electricCurrentController.text.isEmpty) {
+        _showErrorSnackBar('กรุณากรอกค่ามิเตอร์อย่างน้อย 1 ตัว');
+        return;
+      }
+    } else {
+      // ต้องเลือกเดือน/ปี สำหรับบันทึกปกติ
+      if (_selectedMonth == null || _selectedYear == null) {
+        _showErrorSnackBar('กรุณาเลือกเดือนและปี');
+        return;
+      }
+    }
 
     setState(() => _isSaving = true);
 
@@ -486,19 +692,24 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         try {
           dynamic uploadResult;
 
-          // สร้าง contextInfo สำหรับชื่อไฟล์ (เปลี่ยนชื่อเพื่อไม่ conflict)
           final roomNumber = _activeRooms.firstWhere(
               (room) => room['room_id'] == _selectedRoomId)['room_number'];
-          final contextInfo =
-              'room_${roomNumber}_${_selectedMonth.toString().padLeft(2, '0')}_${_selectedYear}';
+
+          // ใช้ "initial" สำหรับครั้งแรก
+          final monthStr = _isInitialReading
+              ? 'initial'
+              : _selectedMonth!.toString().padLeft(2, '0');
+          final yearStr =
+              _isInitialReading ? 'initial' : _selectedYear.toString();
+
+          final contextInfo = 'room_${roomNumber}_${monthStr}_${yearStr}';
 
           if (kIsWeb && _waterMeterImageBytes != null) {
             uploadResult = await ImageService.uploadImageFromBytes(
               _waterMeterImageBytes!,
               _waterMeterImageName ?? 'water_meter.jpg',
               'meter-images',
-              folder:
-                  '$_selectedYear/${_selectedMonth.toString().padLeft(2, '0')}',
+              folder: _isInitialReading ? 'initial' : '$yearStr/$monthStr',
               prefix: 'water_meter',
               context: contextInfo,
             );
@@ -506,8 +717,7 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             uploadResult = await ImageService.uploadImage(
               _waterMeterImage!,
               'meter-images',
-              folder:
-                  '$_selectedYear/${_selectedMonth.toString().padLeft(2, '0')}',
+              folder: _isInitialReading ? 'initial' : '$yearStr/$monthStr',
               prefix: 'water_meter',
               context: contextInfo,
             );
@@ -517,20 +727,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
 
           if (uploadResult != null && uploadResult['success']) {
             waterImageUrl = uploadResult['url'];
-
-            // แสดงข้อความถ้ามีการเปลี่ยนชื่อไฟล์
-            if (uploadResult['renamed'] == true) {
-              debugPrint(
-                  'Water meter image renamed to: ${uploadResult['fileName']}');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'รูปมิเตอร์น้ำถูกเปลี่ยนชื่อเป็น: ${uploadResult['fileName']}'),
-                  backgroundColor: Colors.orange,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
           } else {
             throw Exception(
                 uploadResult?['message'] ?? 'ไม่สามารถอัปโหลดรูปมิเตอร์น้ำได้');
@@ -541,7 +737,7 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         }
       }
 
-      // อัปโหลดรูปไฟ
+      // อัปโหลดรูปไฟ (เหมือนกัน)
       if (_electricMeterImage != null || _electricMeterImageBytes != null) {
         showDialog(
           context: context,
@@ -561,19 +757,23 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         try {
           dynamic uploadResult;
 
-          // สร้าง contextInfo สำหรับชื่อไฟล์ (เปลี่ยนชื่อเพื่อไม่ conflict)
           final roomNumber = _activeRooms.firstWhere(
               (room) => room['room_id'] == _selectedRoomId)['room_number'];
-          final contextInfo =
-              'room_${roomNumber}_${_selectedMonth.toString().padLeft(2, '0')}_${_selectedYear}';
+
+          final monthStr = _isInitialReading
+              ? 'initial'
+              : _selectedMonth!.toString().padLeft(2, '0');
+          final yearStr =
+              _isInitialReading ? 'initial' : _selectedYear.toString();
+
+          final contextInfo = 'room_${roomNumber}_${monthStr}_${yearStr}';
 
           if (kIsWeb && _electricMeterImageBytes != null) {
             uploadResult = await ImageService.uploadImageFromBytes(
               _electricMeterImageBytes!,
               _electricMeterImageName ?? 'electric_meter.jpg',
               'meter-images',
-              folder:
-                  '$_selectedYear/${_selectedMonth.toString().padLeft(2, '0')}',
+              folder: _isInitialReading ? 'initial' : '$yearStr/$monthStr',
               prefix: 'electric_meter',
               context: contextInfo,
             );
@@ -581,8 +781,7 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             uploadResult = await ImageService.uploadImage(
               _electricMeterImage!,
               'meter-images',
-              folder:
-                  '$_selectedYear/${_selectedMonth.toString().padLeft(2, '0')}',
+              folder: _isInitialReading ? 'initial' : '$yearStr/$monthStr',
               prefix: 'electric_meter',
               context: contextInfo,
             );
@@ -592,20 +791,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
 
           if (uploadResult != null && uploadResult['success']) {
             electricImageUrl = uploadResult['url'];
-
-            // แสดงข้อความถ้ามีการเปลี่ยนชื่อไฟล์
-            if (uploadResult['renamed'] == true) {
-              debugPrint(
-                  'Electric meter image renamed to: ${uploadResult['fileName']}');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'รูปมิเตอร์ไฟถูกเปลี่ยนชื่อเป็น: ${uploadResult['fileName']}'),
-                  backgroundColor: Colors.orange,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
           } else {
             throw Exception(
                 uploadResult?['message'] ?? 'ไม่สามารถอัปโหลดรูปมิเตอร์ไฟได้');
@@ -621,26 +806,45 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         'room_id': _selectedRoomId,
         'tenant_id': _selectedTenantId,
         'contract_id': _selectedContractId,
-        'reading_month': _selectedMonth,
-        'reading_year': _selectedYear,
+        'is_initial_reading': _isInitialReading,
         'reading_date': _selectedDate.toIso8601String().split('T')[0],
-        'water_current_reading':
-            double.tryParse(_waterCurrentController.text) ?? 0.0,
-        'electric_current_reading':
-            double.tryParse(_electricCurrentController.text) ?? 0.0,
         'water_meter_image': waterImageUrl,
         'electric_meter_image': electricImageUrl,
         'reading_notes': _notesController.text.trim(),
       };
 
+      // เพิ่มข้อมูลตามประเภท
+      if (_isInitialReading) {
+        // Initial Reading - ไม่มีเดือน/ปี
+        final waterCurrent =
+            double.tryParse(_waterCurrentController.text) ?? 0.0;
+        final electricCurrent =
+            double.tryParse(_electricCurrentController.text) ?? 0.0;
+
+        readingData['water_previous_reading'] = waterCurrent;
+        readingData['water_current_reading'] = waterCurrent;
+        readingData['electric_previous_reading'] = electricCurrent;
+        readingData['electric_current_reading'] = electricCurrent;
+      } else {
+        // Normal Reading - มีเดือน/ปี
+        readingData['reading_month'] = _selectedMonth;
+        readingData['reading_year'] = _selectedYear;
+        readingData['water_previous_reading'] =
+            double.tryParse(_waterPreviousController.text) ?? 0.0;
+        readingData['water_current_reading'] =
+            double.tryParse(_waterCurrentController.text) ?? 0.0;
+        readingData['electric_previous_reading'] =
+            double.tryParse(_electricPreviousController.text) ?? 0.0;
+        readingData['electric_current_reading'] =
+            double.tryParse(_electricCurrentController.text) ?? 0.0;
+      }
+
       Map<String, dynamic> result;
 
       if (widget.readingId != null) {
-        // อัปเดต
         result = await MeterReadingService.updateMeterReading(
             widget.readingId!, readingData);
       } else {
-        // สร้างใหม่
         result = await MeterReadingService.createMeterReading(readingData);
       }
 
@@ -675,7 +879,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     }
   }
 
-  // แสดง SnackBar ข้อผิดพลาด
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -798,29 +1001,17 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ข้อมูลพื้นฐาน
                     _buildBasicInfoSection(),
-
+                    if (_hasCheckedInitialReading) ...[
+                      const SizedBox(height: 16),
+                      _buildInitialReadingCard(),
+                    ],
                     const SizedBox(height: 24),
-
-                    // ค่าก่อนหน้า (ถ้ามี)
-                    if (_lastReading != null) _buildPreviousReadingSection(),
-
-                    const SizedBox(height: 24),
-
-                    // บันทึกค่ามิเตอร์
                     _buildMeterReadingSection(),
-
                     const SizedBox(height: 24),
-
-                    // รูปภาพมิเตอร์
                     _buildImageSection(),
-
                     const SizedBox(height: 24),
-
-                    // หมายเหตุ
                     _buildNotesSection(),
-
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -843,7 +1034,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     );
   }
 
-  // Widget builders (ใช้ code เดิม)
   Widget _buildBasicInfoSection() {
     return Card(
       elevation: 2,
@@ -870,16 +1060,113 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             _buildBranchDropdown(),
             const SizedBox(height: 16),
             _buildRoomDropdown(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildMonthDropdown()),
-                const SizedBox(width: 16),
-                Expanded(child: _buildYearDropdown()),
-              ],
-            ),
+
+            // แสดงเดือน/ปี เฉพาะเมื่อไม่ใช่ Initial Reading
+            if (!_isInitialReading && _hasCheckedInitialReading) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _buildMonthDropdown()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildYearDropdown()),
+                ],
+              ),
+            ],
+
             const SizedBox(height: 16),
             _buildDatePicker(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitialReadingCard() {
+    return Card(
+      elevation: 2,
+      color: _isInitialReading ? Colors.blue.shade50 : Colors.grey.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _isInitialReading ? Icons.flag : Icons.event,
+                  color: _isInitialReading ? Colors.blue : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ประเภทการบันทึก',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _isInitialReading
+                          ? Colors.blue.shade900
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'บันทึกค่าฐานเริ่มต้น',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                _isInitialReading
+                    ? 'ไม่นับเป็นเดือน • ไม่คำนวณการใช้งาน • ไม่ออกบิล'
+                    : 'บันทึกปกติ • คำนวณการใช้งาน • ออกบิลได้',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _isInitialReading,
+              activeColor: Colors.blue,
+              onChanged: (value) {
+                setState(() {
+                  _isInitialReading = value;
+                  if (value) {
+                    _selectedMonth = null;
+                    _selectedYear = null;
+                    _syncPreviousWithCurrent();
+                  } else {
+                    _selectedMonth = DateTime.now().month;
+                    _selectedYear = DateTime.now().year;
+                  }
+                });
+              },
+            ),
+            if (_isInitialReading) ...[
+              const Divider(),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: Colors.amber.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ค่าที่กรอกจะใช้เป็นฐานเริ่มต้น และจะคำนวณการใช้งานจริงในเดือนถัดไป',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -920,7 +1207,8 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           _selectedTenantId = null;
           _selectedContractId = null;
           _activeRooms.clear();
-          _lastReading = null;
+          _hasCheckedInitialReading = false;
+          _isInitialReading = false;
         });
         if (value != null) _loadActiveRooms();
       },
@@ -977,7 +1265,7 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
               ))
           .toList(),
       validator: (value) => value == null ? 'กรุณาเลือกห้อง' : null,
-      onChanged: (value) {
+      onChanged: (value) async {
         if (value != null) {
           final selectedRoom =
               _activeRooms.firstWhere((room) => room['room_id'] == value);
@@ -986,7 +1274,9 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             _selectedTenantId = selectedRoom['tenant_id'];
             _selectedContractId = selectedRoom['contract_id'];
           });
-          _loadLastReading();
+
+          // ตรวจสอบว่าเป็นครั้งแรกหรือไม่
+          await _checkIfFirstReading();
         }
       },
     );
@@ -1018,8 +1308,11 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                 value: index + 1,
                 child: Text(_getMonthName(index + 1)),
               )),
+      validator: !_isInitialReading
+          ? (value) => value == null ? 'กรุณาเลือกเดือน' : null
+          : null,
       onChanged: (value) {
-        setState(() => _selectedMonth = value!);
+        setState(() => _selectedMonth = value);
       },
     );
   }
@@ -1051,8 +1344,11 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           child: Text('$year'),
         );
       }),
+      validator: !_isInitialReading
+          ? (value) => value == null ? 'กรุณาเลือกปี' : null
+          : null,
       onChanged: (value) {
-        setState(() => _selectedYear = value!);
+        setState(() => _selectedYear = value);
       },
     );
   }
@@ -1106,102 +1402,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     );
   }
 
-  Widget _buildPreviousReadingSection() {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.history, color: AppTheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'ค่าก่อนหน้า',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'มิเตอร์น้ำ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_lastReading!['water_current_reading']?.toStringAsFixed(2) ?? '0.00'} หน่วย',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'มิเตอร์ไฟ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_lastReading!['electric_current_reading']?.toStringAsFixed(2) ?? '0.00'} หน่วย',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMeterReadingSection() {
     return Card(
       elevation: 2,
@@ -1215,7 +1415,7 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                 Icon(Icons.electrical_services, color: AppTheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'มิเตอร์ปัจจุบัน',
+                  'บันทึกค่ามิเตอร์',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -1225,42 +1425,108 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
               ],
             ),
             const SizedBox(height: 16),
-            Column(
-              children: [
-                _buildMeterReadingInput(
-                    'น้ำ', _waterCurrentController, Colors.blue),
-                const SizedBox(height: 16),
-                _buildMeterReadingInput(
-                    'ไฟ', _electricCurrentController, Colors.orange),
-              ],
-            )
+            _buildMeterInputGroup(
+              type: 'น้ำ',
+              color: Colors.blue,
+              previousController: _waterPreviousController,
+              currentController: _waterCurrentController,
+            ),
+            const SizedBox(height: 24),
+            _buildMeterInputGroup(
+              type: 'ไฟ',
+              color: Colors.orange,
+              previousController: _electricPreviousController,
+              currentController: _electricCurrentController,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMeterReadingInput(
-      String type, TextEditingController controller, Color color) {
+  Widget _buildMeterInputGroup({
+    required String type,
+    required Color color,
+    required TextEditingController previousController,
+    required TextEditingController currentController,
+  }) {
     final isWater = type == 'น้ำ';
+    final usage =
+        _calculateUsage(previousController.text, currentController.text);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'มิเตอร์$type',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            color: color,
-          ),
+        Row(
+          children: [
+            Icon(
+              isWater ? Icons.water_drop : Icons.flash_on,
+              color: color,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'มิเตอร์$type',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: color,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+
+        // ค่าก่อนหน้า - ซ่อนถ้าเป็น Initial Reading
+        if (!_isInitialReading) ...[
+          TextFormField(
+            controller: previousController,
+            decoration: InputDecoration(
+              labelText: 'ค่าก่อนหน้า *',
+              prefixIcon: Icon(Icons.history, color: color.withOpacity(0.7)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: color, width: 2),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            ],
+            validator: (value) {
+              if (!_isInitialReading && (value == null || value.isEmpty)) {
+                return 'กรุณากรอกค่า$type ก่อนหน้า';
+              }
+              final val = double.tryParse(value ?? '0');
+              if (val == null) {
+                return 'กรุณากรอกตัวเลขที่ถูกต้อง';
+              }
+              if (val < 0) {
+                return 'ค่ามิเตอร์ต้องเป็นตัวเลขบวก';
+              }
+              return null;
+            },
+            onChanged: (value) {
+              setState(() {});
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // ค่าปัจจุบัน
         TextFormField(
-          controller: controller,
+          controller: currentController,
           decoration: InputDecoration(
-            labelText: 'ค่าปัจจุบัน *',
-            suffixText: 'หน่วย',
+            labelText: _isInitialReading ? 'ค่าฐานเริ่มต้น *' : 'ค่าปัจจุบัน *',
             prefixIcon: Icon(
               isWater ? Icons.water_drop : Icons.flash_on,
               color: color,
@@ -1277,7 +1543,8 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
               borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
             ),
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor:
+                _isInitialReading ? Colors.blue.shade50 : Colors.grey.shade50,
           ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
@@ -1285,7 +1552,9 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           ],
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'กรุณากรอกค่า$type';
+              return _isInitialReading
+                  ? 'กรุณากรอกค่าฐานเริ่มต้น'
+                  : 'กรุณากรอกค่า$type ปัจจุบัน';
             }
             final currentValue = double.tryParse(value);
             if (currentValue == null) {
@@ -1294,12 +1563,84 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
             if (currentValue < 0) {
               return 'ค่ามิเตอร์ต้องเป็นตัวเลขบวก';
             }
+
+            if (!_isInitialReading) {
+              final previousValue =
+                  double.tryParse(previousController.text) ?? 0.0;
+              if (currentValue < previousValue) {
+                return 'ค่าปัจจุบันต้องมากกว่าหรือเท่ากับค่าก่อนหน้า';
+              }
+            }
             return null;
           },
           onChanged: (value) {
+            if (_isInitialReading) {
+              _syncPreviousWithCurrent();
+            }
             setState(() {});
           },
         ),
+
+        // แสดงการใช้งาน
+        if (currentController.text.isNotEmpty &&
+            (!_isInitialReading && previousController.text.isNotEmpty ||
+                _isInitialReading))
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calculate, color: color, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'การใช้งาน: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    '${usage.toStringAsFixed(2)} หน่วย',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: color,
+                    ),
+                  ),
+                  if (_isInitialReading) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'กรอกข้อมูลครั้งแรก',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (usage < 0 && !_isInitialReading)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(Icons.warning, color: Colors.red, size: 20),
+                    ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -1324,24 +1665,25 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                     color: AppTheme.primary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (kIsWeb)
+                if (_isInitialReading) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'WEB',
+                      'ไม่บังคับ',
                       style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.blue.shade700,
+                        fontSize: 11,
+                        color: Colors.grey.shade700,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 16),
@@ -1600,6 +1942,9 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
               controller: _notesController,
               decoration: InputDecoration(
                 labelText: 'หมายเหตุ (ถ้ามี)',
+                hintText: _isInitialReading
+                    ? 'เช่น: ค่าเริ่มต้นจากการติดตั้งใหม่'
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -1643,13 +1988,16 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Icon(Icons.save, color: Colors.white),
+            : Icon(_isInitialReading ? Icons.flag : Icons.save,
+                color: Colors.white),
         label: Text(
           _isSaving
               ? 'กำลังบันทึก...'
-              : (widget.readingId != null
-                  ? 'อัปเดตค่ามิเตอร์'
-                  : 'บันทึกค่ามิเตอร์'),
+              : _isInitialReading
+                  ? 'บันทึกค่าฐานเริ่มต้น'
+                  : (widget.readingId != null
+                      ? 'อัปเดตค่ามิเตอร์'
+                      : 'บันทึกค่ามิเตอร์'),
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -1657,7 +2005,9 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: canSave ? AppTheme.primary : Colors.grey,
+          backgroundColor: canSave
+              ? (_isInitialReading ? Colors.blue : AppTheme.primary)
+              : Colors.grey,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
@@ -1668,7 +2018,6 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
     );
   }
 
-  // Utility functions
   String _getMonthName(int month) {
     const months = [
       'มกราคม',

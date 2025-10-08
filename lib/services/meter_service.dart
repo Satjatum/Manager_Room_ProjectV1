@@ -22,6 +22,7 @@ class MeterReadingService {
     String? status,
     int? readingMonth,
     int? readingYear,
+    bool? includeInitial, // เพิ่ม filter สำหรับ initial reading
     String orderBy = 'created_at',
     bool ascending = false,
   }) async {
@@ -61,6 +62,11 @@ class MeterReadingService {
 
       if (readingYear != null) {
         query = query.eq('reading_year', readingYear);
+      }
+
+      // Filter initial readings
+      if (includeInitial != null) {
+        query = query.eq('is_initial_reading', includeInitial);
       }
 
       // Add ordering and pagination
@@ -112,7 +118,7 @@ class MeterReadingService {
     }
   }
 
-  /// ดึงค่ามิเตอร์ล่าสุดของห้อง (สำหรับใช้เป็นค่าก่อนหน้า)
+  /// ดึงค่ามิเตอร์ล่าสุดของห้อง (ไม่รวม Initial Reading)
   static Future<Map<String, dynamic>?> getLastMeterReading(
       String roomId) async {
     try {
@@ -120,6 +126,7 @@ class MeterReadingService {
           .from('meter_readings')
           .select('*')
           .eq('room_id', roomId)
+          .eq('is_initial_reading', false) // ไม่เอา initial reading
           .eq('reading_status', 'confirmed')
           .order('reading_year', ascending: false)
           .order('reading_month', ascending: false)
@@ -129,6 +136,22 @@ class MeterReadingService {
       return result;
     } catch (e) {
       throw Exception('เกิดข้อผิดพลาดในการโหลดค่ามิเตอร์ล่าสุด: $e');
+    }
+  }
+
+  /// ดึง Initial Reading ของห้อง (ถ้ามี)
+  static Future<Map<String, dynamic>?> getInitialReading(String roomId) async {
+    try {
+      final result = await _supabase
+          .from('meter_readings')
+          .select('*')
+          .eq('room_id', roomId)
+          .eq('is_initial_reading', true)
+          .maybeSingle();
+
+      return result;
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดค่าฐานเริ่มต้น: $e');
     }
   }
 
@@ -142,6 +165,7 @@ class MeterReadingService {
           .eq('room_id', roomId)
           .eq('reading_month', month)
           .eq('reading_year', year)
+          .eq('is_initial_reading', false) // ไม่นับ initial reading
           .limit(1);
 
       return result.isNotEmpty;
@@ -150,42 +174,11 @@ class MeterReadingService {
     }
   }
 
-  /// ดึงค่ามิเตอร์ตามสาขาและเดือน/ปี
-  static Future<List<Map<String, dynamic>>> getMeterReadingsByBranchAndMonth(
-    String branchId,
-    int month,
-    int year,
-  ) async {
-    try {
-      final result = await _supabase
-          .from('meter_readings')
-          .select('''
-        *,
-        rooms!inner(room_id, room_number, branch_id),
-        tenants!inner(tenant_id, tenant_fullname, tenant_phone)
-      ''')
-          .eq('rooms.branch_id', branchId)
-          .eq('reading_month', month)
-          .eq('reading_year', year)
-          .order('rooms.room_number');
-
-      return List<Map<String, dynamic>>.from(result).map((reading) {
-        return {
-          ...reading,
-          'tenant_name': reading['tenants']?['tenant_fullname'] ?? '-',
-          'room_number': reading['rooms']?['room_number'] ?? '-',
-        };
-      }).toList();
-    } catch (e) {
-      throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลค่ามิเตอร์: $e');
-    }
-  }
-
   // ============================================
   // CREATE OPERATION
   // ============================================
 
-  /// สร้างบันทึกค่ามิเตอร์ใหม่
+  /// สร้างบันทึกค่ามิเตอร์ใหม่ (รองรับ Initial Reading)
   static Future<Map<String, dynamic>> createMeterReading(
       Map<String, dynamic> readingData) async {
     try {
@@ -215,66 +208,127 @@ class MeterReadingService {
         return {'success': false, 'message': 'กรุณาเลือกผู้เช่า'};
       }
 
-      if (readingData['reading_month'] == null) {
-        return {'success': false, 'message': 'กรุณาระบุเดือนที่บันทึก'};
+      final isInitialReading = readingData['is_initial_reading'] ?? false;
+
+      // Validation ตามประเภท
+      if (isInitialReading) {
+        // Initial Reading - ตรวจสอบว่าไม่มีค่าเริ่มต้นอยู่แล้ว
+        final existingInitial = await getInitialReading(readingData['room_id']);
+        if (existingInitial != null) {
+          return {
+            'success': false,
+            'message': 'ห้องนี้มีค่าฐานเริ่มต้นอยู่แล้ว'
+          };
+        }
+      } else {
+        // Normal Reading - ต้องมีเดือน/ปี
+        if (readingData['reading_month'] == null) {
+          return {'success': false, 'message': 'กรุณาระบุเดือนที่บันทึก'};
+        }
+
+        if (readingData['reading_year'] == null) {
+          return {'success': false, 'message': 'กรุณาระบุปีที่บันทึก'};
+        }
+
+        // ตรวจสอบว่ามีการบันทึกสำหรับเดือนนี้แล้วหรือไม่
+        final hasExisting = await hasReadingForMonth(
+          readingData['room_id'],
+          readingData['reading_month'],
+          readingData['reading_year'],
+        );
+
+        if (hasExisting) {
+          return {
+            'success': false,
+            'message': 'มีการบันทึกค่ามิเตอร์สำหรับเดือนนี้แล้ว'
+          };
+        }
       }
-
-      if (readingData['reading_year'] == null) {
-        return {'success': false, 'message': 'กรุณาระบุปีที่บันทึก'};
-      }
-
-      // ตรวจสอบว่ามีการบันทึกสำหรับเดือนนี้แล้วหรือไม่
-      final hasExisting = await hasReadingForMonth(
-        readingData['room_id'],
-        readingData['reading_month'],
-        readingData['reading_year'],
-      );
-
-      if (hasExisting) {
-        return {
-          'success': false,
-          'message': 'มีการบันทึกค่ามิเตอร์สำหรับเดือนนี้แล้ว'
-        };
-      }
-
-      // ดึงค่ามิเตอร์ก่อนหน้า
-      final lastReading = await getLastMeterReading(readingData['room_id']);
-
-      final waterPrevious = lastReading?['water_current_reading'] ?? 0.0;
-      final electricPrevious = lastReading?['electric_current_reading'] ?? 0.0;
-
-      final waterCurrent = readingData['water_current_reading'] ?? 0.0;
-      final electricCurrent = readingData['electric_current_reading'] ?? 0.0;
-
-      // คำนวณการใช้งาน
-      final waterUsage = waterCurrent - waterPrevious;
-      final electricUsage = electricCurrent - electricPrevious;
 
       // สร้างเลขที่บันทึก
-      final readingNumber = await _generateReadingNumber();
+      final readingNumber = await _generateReadingNumber(isInitialReading);
 
       // เตรียมข้อมูลสำหรับบันทึก
-      final insertData = {
-        'reading_number': readingNumber,
-        'room_id': readingData['room_id'],
-        'tenant_id': readingData['tenant_id'],
-        'contract_id': readingData['contract_id'],
-        'reading_month': readingData['reading_month'],
-        'reading_year': readingData['reading_year'],
-        'water_previous_reading': waterPrevious,
-        'water_current_reading': waterCurrent,
-        'water_usage': waterUsage,
-        'water_meter_image': readingData['water_meter_image'],
-        'electric_previous_reading': electricPrevious,
-        'electric_current_reading': electricCurrent,
-        'electric_usage': electricUsage,
-        'electric_meter_image': readingData['electric_meter_image'],
-        'reading_status': 'draft',
-        'reading_date': readingData['reading_date'] ??
-            DateTime.now().toIso8601String().split('T')[0],
-        'reading_notes': readingData['reading_notes'],
-        'created_by': currentUser.userId,
-      };
+      Map<String, dynamic> insertData;
+
+      if (isInitialReading) {
+        // Initial Reading - ไม่มีเดือน/ปี, usage = 0
+        final waterCurrent = readingData['water_current_reading'] ?? 0.0;
+        final electricCurrent = readingData['electric_current_reading'] ?? 0.0;
+
+        insertData = {
+          'reading_number': readingNumber,
+          'room_id': readingData['room_id'],
+          'tenant_id': readingData['tenant_id'],
+          'contract_id': readingData['contract_id'],
+          'is_initial_reading': true,
+          'reading_month': null, // ไม่มีเดือน
+          'reading_year': null, // ไม่มีปี
+          'water_previous_reading': waterCurrent,
+          'water_current_reading': waterCurrent,
+          'water_usage': 0.0,
+          'water_meter_image': readingData['water_meter_image'],
+          'electric_previous_reading': electricCurrent,
+          'electric_current_reading': electricCurrent,
+          'electric_usage': 0.0,
+          'electric_meter_image': readingData['electric_meter_image'],
+          'reading_status': 'confirmed', // Auto-confirm
+          'reading_date': readingData['reading_date'] ??
+              DateTime.now().toIso8601String().split('T')[0],
+          'reading_notes': readingData['reading_notes'],
+          'created_by': currentUser.userId,
+          'confirmed_by': currentUser.userId,
+          'confirmed_at': DateTime.now().toIso8601String(),
+        };
+      } else {
+        // Normal Reading - มีเดือน/ปี, คำนวณ usage
+        final waterPrevious = readingData['water_previous_reading'] ?? 0.0;
+        final electricPrevious =
+            readingData['electric_previous_reading'] ?? 0.0;
+        final waterCurrent = readingData['water_current_reading'] ?? 0.0;
+        final electricCurrent = readingData['electric_current_reading'] ?? 0.0;
+
+        final waterUsage = waterCurrent - waterPrevious;
+        final electricUsage = electricCurrent - electricPrevious;
+
+        // Validation
+        if (waterUsage < 0) {
+          return {
+            'success': false,
+            'message': 'ค่ามิเตอร์น้ำปัจจุบันต้องมากกว่าหรือเท่ากับค่าก่อนหน้า'
+          };
+        }
+
+        if (electricUsage < 0) {
+          return {
+            'success': false,
+            'message': 'ค่ามิเตอร์ไฟปัจจุบันต้องมากกว่าหรือเท่ากับค่าก่อนหน้า'
+          };
+        }
+
+        insertData = {
+          'reading_number': readingNumber,
+          'room_id': readingData['room_id'],
+          'tenant_id': readingData['tenant_id'],
+          'contract_id': readingData['contract_id'],
+          'is_initial_reading': false,
+          'reading_month': readingData['reading_month'],
+          'reading_year': readingData['reading_year'],
+          'water_previous_reading': waterPrevious,
+          'water_current_reading': waterCurrent,
+          'water_usage': waterUsage,
+          'water_meter_image': readingData['water_meter_image'],
+          'electric_previous_reading': electricPrevious,
+          'electric_current_reading': electricCurrent,
+          'electric_usage': electricUsage,
+          'electric_meter_image': readingData['electric_meter_image'],
+          'reading_status': 'draft',
+          'reading_date': readingData['reading_date'] ??
+              DateTime.now().toIso8601String().split('T')[0],
+          'reading_notes': readingData['reading_notes'],
+          'created_by': currentUser.userId,
+        };
+      }
 
       final result = await _supabase
           .from('meter_readings')
@@ -284,7 +338,9 @@ class MeterReadingService {
 
       return {
         'success': true,
-        'message': 'บันทึกค่ามิเตอร์สำเร็จ',
+        'message': isInitialReading
+            ? 'บันทึกค่าฐานเริ่มต้นสำเร็จ'
+            : 'บันทึกค่ามิเตอร์สำเร็จ',
         'data': result,
       };
     } on PostgrestException catch (e) {
@@ -296,39 +352,6 @@ class MeterReadingService {
       return {
         'success': false,
         'message': 'เกิดข้อผิดพลาดในการบันทึกค่ามิเตอร์: $e',
-      };
-    }
-  }
-
-  /// อัปโหลดรูปมิเตอร์
-  static Future<Map<String, dynamic>> uploadMeterImage(
-    File imageFile,
-    String meterType, // 'water' หรือ 'electric'
-    String roomNumber,
-    int month,
-    int year,
-  ) async {
-    try {
-      // สร้างชื่อไฟล์ใหม่
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final extension = imageFile.path.split('.').last.toLowerCase();
-      final fileName =
-          '${roomNumber}_${meterType}_${year}_${month.toString().padLeft(2, '0')}_$timestamp.$extension';
-
-      // อัปโหลดไปยัง bucket meter-image
-      final result = await ImageService.uploadImage(
-        imageFile,
-        'meter-image',
-        folder: '$year/${month.toString().padLeft(2, '0')}',
-        customFileName: fileName,
-      );
-
-      return result;
-    } catch (e) {
-      print('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: $e');
-      return {
-        'success': false,
-        'message': 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: $e',
       };
     }
   }
@@ -348,7 +371,6 @@ class MeterReadingService {
         return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
-      // ตรวจสอบสิทธิ์
       if (!currentUser.hasAnyPermission([
         DetailedPermission.all,
         DetailedPermission.manageMeterReadings,
@@ -356,40 +378,90 @@ class MeterReadingService {
         return {'success': false, 'message': 'ไม่มีสิทธิ์ในการแก้ไขค่ามิเตอร์'};
       }
 
-      // ตรวจสอบสถานะ - ไม่ให้แก้ไขถ้า confirmed แล้ว
+      // ตรวจสอบสถานะ
       final existing = await getMeterReadingById(readingId);
       if (existing == null) {
         return {'success': false, 'message': 'ไม่พบข้อมูลค่ามิเตอร์'};
       }
 
-      if (existing['reading_status'] == 'confirmed') {
+      // ไม่ให้แก้ไขถ้ายืนยันแล้ว (ยกเว้น Initial Reading)
+      final isInitialReading = existing['is_initial_reading'] ?? false;
+      if (!isInitialReading && existing['reading_status'] == 'confirmed') {
         return {
           'success': false,
           'message': 'ไม่สามารถแก้ไขค่ามิเตอร์ที่ยืนยันแล้ว'
         };
       }
 
-      // คำนวณการใช้งานใหม่
-      final waterUsage = (readingData['water_current_reading'] ??
-              existing['water_current_reading']) -
-          existing['water_previous_reading'];
-      final electricUsage = (readingData['electric_current_reading'] ??
-              existing['electric_current_reading']) -
-          existing['electric_previous_reading'];
+      Map<String, dynamic> updateData;
 
-      // เตรียมข้อมูลสำหรับอัปเดต
-      final updateData = {
-        'water_current_reading': readingData['water_current_reading'],
-        'water_usage': waterUsage,
-        'water_meter_image': readingData['water_meter_image'],
-        'electric_current_reading': readingData['electric_current_reading'],
-        'electric_usage': electricUsage,
-        'electric_meter_image': readingData['electric_meter_image'],
-        'reading_date': readingData['reading_date'],
-        'reading_notes': readingData['reading_notes'],
-      };
+      if (isInitialReading) {
+        // Initial Reading - อัปเดตค่าเดียวกัน
+        final waterCurrent = readingData['water_current_reading'] ??
+            existing['water_current_reading'] ??
+            0.0;
+        final electricCurrent = readingData['electric_current_reading'] ??
+            existing['electric_current_reading'] ??
+            0.0;
 
-      // ลบค่า null ออก
+        updateData = {
+          'water_previous_reading': waterCurrent,
+          'water_current_reading': waterCurrent,
+          'water_usage': 0.0,
+          'water_meter_image': readingData['water_meter_image'],
+          'electric_previous_reading': electricCurrent,
+          'electric_current_reading': electricCurrent,
+          'electric_usage': 0.0,
+          'electric_meter_image': readingData['electric_meter_image'],
+          'reading_date': readingData['reading_date'],
+          'reading_notes': readingData['reading_notes'],
+        };
+      } else {
+        // Normal Reading - คำนวณใหม่
+        final waterPrevious = readingData['water_previous_reading'] ??
+            existing['water_previous_reading'] ??
+            0.0;
+        final waterCurrent = readingData['water_current_reading'] ??
+            existing['water_current_reading'] ??
+            0.0;
+        final electricPrevious = readingData['electric_previous_reading'] ??
+            existing['electric_previous_reading'] ??
+            0.0;
+        final electricCurrent = readingData['electric_current_reading'] ??
+            existing['electric_current_reading'] ??
+            0.0;
+
+        final waterUsage = waterCurrent - waterPrevious;
+        final electricUsage = electricCurrent - electricPrevious;
+
+        if (waterUsage < 0) {
+          return {
+            'success': false,
+            'message': 'ค่ามิเตอร์น้ำปัจจุบันต้องมากกว่าหรือเท่ากับค่าก่อนหน้า'
+          };
+        }
+
+        if (electricUsage < 0) {
+          return {
+            'success': false,
+            'message': 'ค่ามิเตอร์ไฟปัจจุบันต้องมากกว่าหรือเท่ากับค่าก่อนหน้า'
+          };
+        }
+
+        updateData = {
+          'water_previous_reading': waterPrevious,
+          'water_current_reading': waterCurrent,
+          'water_usage': waterUsage,
+          'water_meter_image': readingData['water_meter_image'],
+          'electric_previous_reading': electricPrevious,
+          'electric_current_reading': electricCurrent,
+          'electric_usage': electricUsage,
+          'electric_meter_image': readingData['electric_meter_image'],
+          'reading_date': readingData['reading_date'],
+          'reading_notes': readingData['reading_notes'],
+        };
+      }
+
       updateData.removeWhere((key, value) => value == null);
 
       final result = await _supabase
@@ -433,6 +505,15 @@ class MeterReadingService {
         return {
           'success': false,
           'message': 'ไม่มีสิทธิ์ในการยืนยันค่ามิเตอร์'
+        };
+      }
+
+      // ตรวจสอบว่าเป็น Initial Reading หรือไม่
+      final reading = await getMeterReadingById(readingId);
+      if (reading != null && reading['is_initial_reading'] == true) {
+        return {
+          'success': false,
+          'message': 'ค่าฐานเริ่มต้นถูกยืนยันอัตโนมัติแล้ว'
         };
       }
 
@@ -494,7 +575,7 @@ class MeterReadingService {
   // DELETE OPERATION
   // ============================================
 
-  /// ลบค่ามิเตอร์ (เฉพาะ draft)
+  /// ลบค่ามิเตอร์
   static Future<Map<String, dynamic>> deleteMeterReading(
       String readingId) async {
     try {
@@ -507,24 +588,29 @@ class MeterReadingService {
         return {'success': false, 'message': 'ไม่มีสิทธิ์ในการลบค่ามิเตอร์'};
       }
 
-      // ตรวจสอบสถานะ
       final existing = await getMeterReadingById(readingId);
       if (existing == null) {
         return {'success': false, 'message': 'ไม่พบข้อมูลค่ามิเตอร์'};
       }
 
-      if (existing['reading_status'] == 'confirmed') {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถลบค่ามิเตอร์ที่ยืนยันแล้ว'
-        };
-      }
+      // Initial Reading สามารถลบได้เสมอ
+      final isInitialReading = existing['is_initial_reading'] ?? false;
 
-      if (existing['reading_status'] == 'billed') {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถลบค่ามิเตอร์ที่ออกบิลแล้ว'
-        };
+      if (!isInitialReading) {
+        // Normal Reading - ตรวจสอบสถานะ
+        if (existing['reading_status'] == 'confirmed') {
+          return {
+            'success': false,
+            'message': 'ไม่สามารถลบค่ามิเตอร์ที่ยืนยันแล้ว'
+          };
+        }
+
+        if (existing['reading_status'] == 'billed') {
+          return {
+            'success': false,
+            'message': 'ไม่สามารถลบค่ามิเตอร์ที่ออกบิลแล้ว'
+          };
+        }
       }
 
       // ลบรูปภาพจาก storage
@@ -543,7 +629,8 @@ class MeterReadingService {
 
       return {
         'success': true,
-        'message': 'ลบค่ามิเตอร์สำเร็จ',
+        'message':
+            isInitialReading ? 'ลบค่าฐานเริ่มต้นสำเร็จ' : 'ลบค่ามิเตอร์สำเร็จ',
       };
     } catch (e) {
       return {
@@ -558,11 +645,17 @@ class MeterReadingService {
   // ============================================
 
   /// สร้างเลขที่บันทึกอัตโนมัติ
-  static Future<String> _generateReadingNumber() async {
+  static Future<String> _generateReadingNumber(bool isInitialReading) async {
+    if (isInitialReading) {
+      // Initial Reading ใช้ prefix พิเศษ
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      return 'INIT${timestamp.toString().substring(timestamp.toString().length - 8)}';
+    }
+
+    // Normal Reading
     final now = DateTime.now();
     final prefix = 'MR${now.year}${now.month.toString().padLeft(2, '0')}';
 
-    // หาเลขที่สุดท้าย
     final lastReading = await _supabase
         .from('meter_readings')
         .select('reading_number')
@@ -599,7 +692,6 @@ class MeterReadingService {
 
       final result = await query;
 
-      // เรียงลำดับหลังจากได้ข้อมูลแล้ว
       final sortedResult = List<Map<String, dynamic>>.from(result);
       sortedResult.sort((a, b) {
         final roomNumberA = a['rooms']?['room_number']?.toString() ?? '';
@@ -628,13 +720,17 @@ class MeterReadingService {
     String? branchId,
     int? month,
     int? year,
+    bool includeInitial = false,
   }) async {
     try {
-      var query = _supabase.from('meter_readings').select('reading_status');
+      var query = _supabase
+          .from('meter_readings')
+          .select('reading_status, is_initial_reading');
 
       if (branchId != null) {
         query = _supabase.from('meter_readings').select('''
           reading_status,
+          is_initial_reading,
           rooms!inner(branch_id)
         ''').eq('rooms.branch_id', branchId);
       }
@@ -647,12 +743,25 @@ class MeterReadingService {
         query = query.eq('reading_year', year);
       }
 
+      if (!includeInitial) {
+        query = query.eq('is_initial_reading', false);
+      }
+
       final result = await query;
 
       final total = result.length;
-      final draft = result.where((r) => r['reading_status'] == 'draft').length;
-      final confirmed =
-          result.where((r) => r['reading_status'] == 'confirmed').length;
+      final initial =
+          result.where((r) => r['is_initial_reading'] == true).length;
+      final draft = result
+          .where((r) =>
+              r['is_initial_reading'] == false &&
+              r['reading_status'] == 'draft')
+          .length;
+      final confirmed = result
+          .where((r) =>
+              r['is_initial_reading'] == false &&
+              r['reading_status'] == 'confirmed')
+          .length;
       final billed =
           result.where((r) => r['reading_status'] == 'billed').length;
       final cancelled =
@@ -660,6 +769,7 @@ class MeterReadingService {
 
       return {
         'total': total,
+        'initial': initial,
         'draft': draft,
         'confirmed': confirmed,
         'billed': billed,
@@ -676,5 +786,50 @@ class MeterReadingService {
     required double currentReading,
   }) {
     return currentReading >= previousReading;
+  }
+
+  /// คำนวณการใช้งาน
+  static double calculateUsage({
+    required double previousReading,
+    required double currentReading,
+  }) {
+    return currentReading - previousReading;
+  }
+
+  /// แนะนำค่าก่อนหน้าจากการบันทึกล่าสุด หรือจาก Initial Reading
+  static Future<Map<String, dynamic>?> getSuggestedPreviousReadings(
+      String roomId) async {
+    try {
+      // ลองหาค่าจากบันทึกล่าสุด
+      final lastReading = await getLastMeterReading(roomId);
+
+      if (lastReading != null) {
+        return {
+          'water_previous': lastReading['water_current_reading'] ?? 0.0,
+          'electric_previous': lastReading['electric_current_reading'] ?? 0.0,
+          'last_reading_date': lastReading['reading_date'],
+          'last_reading_month': lastReading['reading_month'],
+          'last_reading_year': lastReading['reading_year'],
+          'source': 'last_reading',
+        };
+      }
+
+      // ถ้าไม่มี ลองหาจาก Initial Reading
+      final initialReading = await getInitialReading(roomId);
+      if (initialReading != null) {
+        return {
+          'water_previous': initialReading['water_current_reading'] ?? 0.0,
+          'electric_previous':
+              initialReading['electric_current_reading'] ?? 0.0,
+          'last_reading_date': initialReading['reading_date'],
+          'source': 'initial_reading',
+        };
+      }
+
+      return null;
+    } catch (e) {
+      print('Error getting suggested previous readings: $e');
+      return null;
+    }
   }
 }

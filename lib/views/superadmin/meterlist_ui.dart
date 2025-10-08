@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/superadmin/meter_add_ui.dart';
+import 'package:manager_room_project/views/superadmin/meter_edit_ui.dart';
+import 'package:manager_room_project/views/superadmin/meterlist_detail_ui.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
 import '../../services/meter_service.dart';
 import '../../services/branch_service.dart';
@@ -906,6 +908,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     final isMobile = screenSize.width <= 768;
     final isTablet = screenSize.width > 768 && screenSize.width <= 1200;
 
+    final readingId = reading['reading_id'];
     final status = reading['reading_status'] ?? 'draft';
     final statusColor = _getStatusColor(status);
     final statusText = _getStatusText(status);
@@ -924,7 +927,14 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
-          // Navigator.push
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MeterReadingDetailPage(
+                readingId: readingId,
+              ),
+            ),
+          ).then((_) => _refreshData());
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
@@ -1117,11 +1127,11 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
         ),
         const SizedBox(height: 4),
         Text(
-          'ก่อนหน้า: ${previous?.toStringAsFixed(2) ?? '0.00'} หน่วย',
+          'ก่อนหน้า: ${previous?.toStringAsFixed(2) ?? '0.00'}',
           style: const TextStyle(fontSize: 12),
         ),
         Text(
-          'ปัจจุบัน: ${current?.toStringAsFixed(2) ?? '0.00'} หน่วย',
+          'ปัจจุบัน: ${current?.toStringAsFixed(2) ?? '0.00'} ',
           style: const TextStyle(fontSize: 12),
         ),
         Text(
@@ -1191,7 +1201,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     }
 
     // Divider ก่อนปุ่มอันตราย
-    if (status == 'draft' || status == 'confirmed') {
+    if (status == 'draft' || status == 'confirmed' || status == 'cancelled') {
       menuItems.add(const PopupMenuDivider());
     }
 
@@ -1202,7 +1212,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
           value: 'cancel',
           child: Row(
             children: [
-              Icon(Icons.cancel, size: 18, color: Colors.red[600]),
+              Icon(Icons.cancel, size: 18, color: Colors.orange[700]),
               const SizedBox(width: 12),
               const Text('ยกเลิก'),
             ],
@@ -1211,24 +1221,37 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       );
     }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Popup Menu Button
-        PopupMenuButton<String>(
-          onSelected: (value) => _handleMenuAction(value, reading),
-          icon: Icon(
-            Icons.more_vert,
-            color: Colors.grey[600],
+    // ปุ่มลบ (สำหรับ SuperAdmin เท่านั้น - ลบได้ทุกสถานะ ยกเว้น billed)
+    if (_currentUser?.userRole == UserRole.superAdmin && status != 'billed') {
+      menuItems.add(
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_forever, size: 18, color: Colors.red[700]),
+              const SizedBox(width: 12),
+              const Text(
+                'ลบถาวร',
+                style: TextStyle(color: Colors.red),
+              ),
+            ],
           ),
-          tooltip: 'ตัวเลือก',
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 8,
-          itemBuilder: (BuildContext context) => menuItems,
         ),
-      ],
+      );
+    }
+
+    return PopupMenuButton<String>(
+      onSelected: (value) => _handleMenuAction(value, reading),
+      icon: Icon(
+        Icons.more_vert,
+        color: Colors.grey[600],
+      ),
+      tooltip: 'ตัวเลือก',
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 8,
+      itemBuilder: (BuildContext context) => menuItems,
     );
   }
 
@@ -1240,13 +1263,25 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
 
     switch (action) {
       case 'view':
-        // Navigator.push to detail page
-        // Navigator.pushNamed(context, '/meter-reading/detail', arguments: readingId);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MeterReadingDetailPage(
+              readingId: readingId,
+            ),
+          ),
+        ).then((_) => _refreshData());
         break;
 
       case 'edit':
-        // Navigator.push to edit page
-        // Navigator.pushNamed(context, '/meter-reading/edit', arguments: readingId);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MeterReadingEditPage(
+              readingId: readingId,
+            ),
+          ),
+        ).then((_) => _refreshData());
         break;
 
       case 'confirm':
@@ -1254,84 +1289,12 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
         break;
 
       case 'cancel':
-        // เมื่อกดยกเลิก ให้แสดงเมนูเพิ่มเติมพร้อมปุ่มลบ
-        await _showCancelMenu(reading);
+        await _cancelReading(readingId, readingNumber);
         break;
-    }
-  }
 
-  Future<void> _showCancelMenu(Map<String, dynamic> reading) async {
-    final readingId = reading['reading_id'];
-    final readingNumber = reading['reading_number'];
-    final status = reading['reading_status'] ?? 'draft';
-
-    // สร้างรายการเมนูสำหรับการยกเลิก
-    final List<PopupMenuEntry<String>> cancelMenuItems = [
-      PopupMenuItem<String>(
-        value: 'cancel_reading',
-        child: Row(
-          children: [
-            Icon(Icons.cancel, size: 18, color: Colors.orange[600]),
-            const SizedBox(width: 12),
-            const Text('ยกเลิกค่ามิเตอร์'),
-          ],
-        ),
-      ),
-    ];
-
-    // เพิ่มปุ่มลบสำหรับ draft และ superadmin
-    if (status == 'draft') {
-      final currentUser = await AuthService.getCurrentUser();
-      if (currentUser?.userRole == UserRole.superAdmin) {
-        cancelMenuItems.add(const PopupMenuDivider());
-        cancelMenuItems.add(
-          PopupMenuItem<String>(
-            value: 'delete_reading',
-            child: Row(
-              children: [
-                Icon(Icons.delete_forever, size: 18, color: Colors.red[700]),
-                const SizedBox(width: 12),
-                const Text(
-                  'ลบถาวร',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-
-    // แสดง popup menu ที่ตำแหน่งกลางหน้าจอ
-    final RenderBox overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final RelativeRect position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        overlay.size.center(Offset.zero),
-        overlay.size.center(Offset.zero),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    final result = await showMenu<String>(
-      context: context,
-      position: position,
-      items: cancelMenuItems,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      elevation: 8,
-    );
-
-    if (result != null) {
-      switch (result) {
-        case 'cancel_reading':
-          await _cancelReading(readingId, readingNumber);
-          break;
-        case 'delete_reading':
-          await _deleteReading(readingId, readingNumber);
-          break;
-      }
+      case 'delete':
+        await _deleteReading(readingId, readingNumber);
+        break;
     }
   }
 
