@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:manager_room_project/views/superadmin/invoice_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/meter_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/meter_edit_ui.dart';
 import 'package:manager_room_project/views/superadmin/meterlist_detail_ui.dart';
@@ -63,358 +64,76 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     }
   }
 
-  // โหลดข้อมูลเริ่มต้น
-  Future<void> _loadInitialData() async {
-    setState(() => _isLoading = true);
+  // ฟังก์ชันจัดรูปแบบวันที่
+  String _formatDate(DateTime date) {
+    const months = [
+      'ม.ค.',
+      'ก.พ.',
+      'มี.ค.',
+      'เม.ย.',
+      'พ.ค.',
+      'มิ.ย.',
+      'ก.ค.',
+      'ส.ค.',
+      'ก.ย.',
+      'ต.ค.',
+      'พ.ย.',
+      'ธ.ค.'
+    ];
 
-    try {
-      _currentUser = await AuthService.getCurrentUser();
-      if (_currentUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      await Future.wait([
-        _loadBranches(),
-        _loadMeterReadings(),
-        _loadStats(),
-      ]);
-    } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    return '${date.day} ${months[date.month - 1]} ${date.year + 543}';
   }
 
-  // โหลดสาขา
-  Future<void> _loadBranches() async {
-    try {
-      if (_currentUser?.userRole == UserRole.superAdmin) {
-        _branches = await BranchService.getAllBranches();
-      } else {
-        _branches = await BranchService.getBranchesByUser();
-      }
-      setState(() {});
-    } catch (e) {
-      debugPrint('Error loading branches: $e');
-    }
+  String _formatDateTime(DateTime dateTime) {
+    return '${_formatDate(dateTime)} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} น.';
   }
 
-  // โหลดห้องตามสาขาที่เลือก
-  Future<void> _loadRooms() async {
-    if (_selectedBranchId == null) return;
-
-    try {
-      final rooms = await RoomService.getAllRooms(branchId: _selectedBranchId);
-      setState(() => _rooms = rooms);
-    } catch (e) {
-      debugPrint('Error loading rooms: $e');
-    }
+  String _getMonthName(int month) {
+    const monthNames = [
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม'
+    ];
+    return monthNames[month - 1];
   }
 
-  // โหลดข้อมูลค่ามิเตอร์
-  Future<void> _loadMeterReadings({bool isLoadMore = false}) async {
-    if (isLoadMore) {
-      setState(() => _isLoadingMore = true);
-    }
-
-    try {
-      final offset = isLoadMore ? _meterReadings.length : 0;
-
-      final readings = await MeterReadingService.getAllMeterReadings(
-        offset: offset,
-        limit: _pageSize,
-        searchQuery:
-            _searchController.text.isNotEmpty ? _searchController.text : null,
-        branchId: _selectedBranchId,
-        roomId: _selectedRoomId,
-        status: _selectedStatus == 'all' ? null : _selectedStatus,
-        readingMonth: _selectedMonth,
-        readingYear: _selectedYear,
-      );
-
-      setState(() {
-        if (isLoadMore) {
-          _meterReadings.addAll(readings);
-        } else {
-          _meterReadings = readings;
-          _currentPage = 0;
-        }
-        _hasMoreData = readings.length == _pageSize;
-      });
-
-      _applyFilters();
-    } catch (e) {
-      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
-    } finally {
-      if (isLoadMore) {
-        setState(() => _isLoadingMore = false);
-      }
-    }
-  }
-
-  // ใช้ตัวกรอง
-  void _applyFilters() {
-    if (!mounted || _meterReadings.isEmpty) {
-      setState(() => _filteredReadings = []);
-      return;
-    }
-
-    List<Map<String, dynamic>> filtered = List.from(_meterReadings);
-
-    // Filter by tab status
-    String tabStatus = _getStatusFromTab(_tabController.index);
-    if (tabStatus != 'all') {
-      filtered = filtered
-          .where((reading) => reading['reading_status'] == tabStatus)
-          .toList();
-    }
-
-    // Filter by search
-    if (_searchQuery.isNotEmpty) {
-      filtered = filtered.where((reading) {
-        final readingNumber =
-            reading['reading_number']?.toString().toLowerCase() ?? '';
-        final roomNumber =
-            reading['room_number']?.toString().toLowerCase() ?? '';
-        final tenantName =
-            reading['tenant_name']?.toString().toLowerCase() ?? '';
-        final query = _searchQuery.toLowerCase();
-
-        return readingNumber.contains(query) ||
-            roomNumber.contains(query) ||
-            tenantName.contains(query);
-      }).toList();
-    }
-
-    setState(() => _filteredReadings = filtered);
-  }
-
-  String _getStatusFromTab(int index) {
-    switch (index) {
-      case 0:
-        return 'all';
-      case 1:
-        return 'draft';
-      case 2:
-        return 'confirmed';
-      case 3:
-        return 'billed';
-      case 4:
-        return 'cancelled';
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'draft':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.green;
+      case 'billed':
+        return Colors.purple;
+      case 'cancelled':
+        return Colors.red;
       default:
-        return 'all';
+        return Colors.grey;
     }
   }
 
-  int _getReadingCountByStatus(String status) {
-    if (_stats == null) return 0;
-    if (status == 'all') return _stats!['total'] ?? 0;
-    return _stats![status] ?? 0;
-  }
-
-  // โหลดสถิติ
-  Future<void> _loadStats() async {
-    try {
-      final stats = await MeterReadingService.getMeterReadingStats(
-        branchId: _selectedBranchId,
-        month: _selectedMonth,
-        year: _selectedYear,
-      );
-      setState(() => _stats = stats);
-    } catch (e) {
-      debugPrint('Error loading stats: $e');
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'draft':
+        return 'ร่าง';
+      case 'confirmed':
+        return 'ยืนยันแล้ว';
+      case 'billed':
+        return 'ออกบิลแล้ว';
+      case 'cancelled':
+        return 'ยกเลิก';
+      default:
+        return 'ไม่ทราบ';
     }
-  }
-
-  // รีเฟรชข้อมูล
-  Future<void> _refreshData() async {
-    await Future.wait([
-      _loadMeterReadings(),
-      _loadStats(),
-    ]);
-  }
-
-  // ยืนยันค่ามิเตอร์
-  Future<void> _confirmReading(String readingId, String readingNumber) async {
-    final currentUser = await AuthService.getCurrentUser();
-    if (currentUser == null) {
-      _showErrorSnackBar('กรุณาเข้าสู่ระบบใหม่');
-      return;
-    }
-
-    final canManage = currentUser.hasAnyPermission([
-      DetailedPermission.all,
-      DetailedPermission.manageMeterReadings,
-    ]);
-
-    if (!canManage) {
-      _showErrorSnackBar('ไม่มีสิทธิ์ในการยืนยันค่ามิเตอร์');
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ยืนยันค่ามิเตอร์'),
-        content: Text('ต้องการยืนยันค่ามิเตอร์ $readingNumber หรือไม่?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ยืนยัน'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        final result = await MeterReadingService.confirmMeterReading(readingId);
-        if (result['success']) {
-          _showSuccessSnackBar('ยืนยันค่ามิเตอร์สำเร็จ');
-          _refreshData();
-        } else {
-          _showErrorSnackBar(result['message']);
-        }
-      } catch (e) {
-        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-      }
-    }
-  }
-
-  // ยกเลิกค่ามิเตอร์
-  Future<void> _cancelReading(String readingId, String readingNumber) async {
-    final reasonController = TextEditingController();
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ยกเลิกค่ามิเตอร์'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('ต้องการยกเลิกค่ามิเตอร์ $readingNumber หรือไม่?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'เหตุผลในการยกเลิก',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ยืนยัน'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        final result = await MeterReadingService.cancelMeterReading(
-          readingId,
-          reasonController.text,
-        );
-        if (result['success']) {
-          _showSuccessSnackBar('ยกเลิกค่ามิเตอร์สำเร็จ');
-          _refreshData();
-        } else {
-          _showErrorSnackBar(result['message']);
-        }
-      } catch (e) {
-        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-      }
-    }
-  }
-
-  // ลบค่ามิเตอร์
-  Future<void> _deleteReading(String readingId, String readingNumber) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ลบค่ามิเตอร์'),
-        content: Text(
-            'ต้องการลบค่ามิเตอร์ $readingNumber หรือไม่?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ลบ'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        final result = await MeterReadingService.deleteMeterReading(readingId);
-        if (result['success']) {
-          _showSuccessSnackBar('ลบค่ามิเตอร์สำเร็จ');
-          _refreshData();
-        } else {
-          _showErrorSnackBar(result['message']);
-        }
-      } catch (e) {
-        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
-      }
-    }
-  }
-
-  // แสดง SnackBar สำเร็จ
-  void _showSuccessSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green[600],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  // แสดง SnackBar ข้อผิดพลาด
-  void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.red[600],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 4),
-      ),
-    );
   }
 
   @override
@@ -904,6 +623,34 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     );
   }
 
+  Widget _buildLoadMoreButton() {
+    if (!_hasMoreData) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: _isLoadingMore
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            )
+          : ElevatedButton.icon(
+              onPressed: () => _loadMeterReadings(isLoadMore: true),
+              icon: const Icon(Icons.expand_more),
+              label: const Text('โหลดเพิ่มเติม'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+    );
+  }
+
   Widget _buildMeterReadingCard(Map<String, dynamic> reading, Size screenSize) {
     final isMobile = screenSize.width <= 768;
     final isTablet = screenSize.width > 768 && screenSize.width <= 1200;
@@ -1150,11 +897,11 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     final status = reading['reading_status'] ?? 'draft';
     final readingId = reading['reading_id'];
     final readingNumber = reading['reading_number'];
+    final invoiceId = reading['invoice_id']; // เช็คว่าออกบิลแล้วหรือยัง
 
-    // สร้างรายการเมนู
     final List<PopupMenuEntry<String>> menuItems = [];
 
-    // ปุ่มดูรายละเอียด (แสดงเสมอ)
+    // ปุ่มดูรายละเอียด
     menuItems.add(
       PopupMenuItem<String>(
         value: 'view',
@@ -1200,29 +947,62 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       );
     }
 
-    // Divider ก่อนปุ่มอันตราย
-    if (status == 'draft' || status == 'confirmed' || status == 'cancelled') {
-      menuItems.add(const PopupMenuDivider());
-    }
-
-    // ปุ่มยกเลิก (เฉพาะ draft และ confirmed)
-    if (status == 'draft' || status == 'confirmed') {
+    // ปุ่มออกบิล (สำหรับสถานะ confirmed และยังไม่ได้ออกบิล)
+    if (status == 'confirmed' && invoiceId == null) {
       menuItems.add(
         PopupMenuItem<String>(
-          value: 'cancel',
+          value: 'create_invoice',
           child: Row(
             children: [
-              Icon(Icons.cancel, size: 18, color: Colors.orange[700]),
+              Icon(Icons.receipt_long, size: 18, color: Colors.purple[600]),
               const SizedBox(width: 12),
-              const Text('ยกเลิก'),
+              const Text('ออกบิล',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
         ),
       );
     }
 
-    // ปุ่มลบ (สำหรับ SuperAdmin เท่านั้น - ลบได้ทุกสถานะ ยกเว้น billed)
-    if (_currentUser?.userRole == UserRole.superAdmin && status != 'billed') {
+    // ปุ่มดูบิล (ถ้าออกบิลแล้ว)
+    if (invoiceId != null) {
+      menuItems.add(
+        PopupMenuItem<String>(
+          value: 'view_invoice',
+          child: Row(
+            children: [
+              Icon(Icons.description, size: 18, color: Colors.blue[700]),
+              const SizedBox(width: 12),
+              const Text('ดูบิล'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ปุ่มยกเลิก (เฉพาะ draft)
+    if (status == 'draft') {
+      menuItems.add(const PopupMenuDivider());
+      menuItems.add(
+        PopupMenuItem<String>(
+          value: 'cancel',
+          child: Row(
+            children: [
+              Icon(Icons.cancel, size: 18, color: Colors.red[600]),
+              const SizedBox(width: 12),
+              const Text('ยกเลิก', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ปุ่มลบ (เฉพาะ Super Admin และสถานะ draft หรือ cancelled)
+    if (_currentUser?.userRole == UserRole.superAdmin &&
+        (status == 'draft' || status == 'cancelled')) {
+      if (menuItems.last is! PopupMenuDivider) {
+        menuItems.add(const PopupMenuDivider());
+      }
       menuItems.add(
         PopupMenuItem<String>(
           value: 'delete',
@@ -1230,10 +1010,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
             children: [
               Icon(Icons.delete_forever, size: 18, color: Colors.red[700]),
               const SizedBox(width: 12),
-              const Text(
-                'ลบถาวร',
-                style: TextStyle(color: Colors.red),
-              ),
+              const Text('ลบ', style: TextStyle(color: Colors.red)),
             ],
           ),
         ),
@@ -1241,145 +1018,555 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     }
 
     return PopupMenuButton<String>(
-      onSelected: (value) => _handleMenuAction(value, reading),
-      icon: Icon(
-        Icons.more_vert,
-        color: Colors.grey[600],
-      ),
-      tooltip: 'ตัวเลือก',
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      elevation: 8,
-      itemBuilder: (BuildContext context) => menuItems,
-    );
-  }
-
-  Future<void> _handleMenuAction(
-      String action, Map<String, dynamic> reading) async {
-    final readingId = reading['reading_id'];
-    final readingNumber = reading['reading_number'];
-    final status = reading['reading_status'] ?? 'draft';
-
-    switch (action) {
-      case 'view':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MeterReadingDetailPage(
-              readingId: readingId,
-            ),
-          ),
-        ).then((_) => _refreshData());
-        break;
-
-      case 'edit':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MeterReadingEditPage(
-              readingId: readingId,
-            ),
-          ),
-        ).then((_) => _refreshData());
-        break;
-
-      case 'confirm':
-        await _confirmReading(readingId, readingNumber);
-        break;
-
-      case 'cancel':
-        await _cancelReading(readingId, readingNumber);
-        break;
-
-      case 'delete':
-        await _deleteReading(readingId, readingNumber);
-        break;
-    }
-  }
-
-  Widget _buildLoadMoreButton() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Center(
-        child: _isLoadingMore
-            ? CircularProgressIndicator(color: AppTheme.primary)
-            : ElevatedButton.icon(
-                icon: const Icon(Icons.expand_more),
-                label: const Text('โหลดเพิ่มเติม'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
+      icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      itemBuilder: (context) => menuItems,
+      onSelected: (String value) {
+        switch (value) {
+          case 'view':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MeterReadingDetailPage(
+                  readingId: readingId,
                 ),
-                onPressed: () => _loadMeterReadings(isLoadMore: true),
               ),
+            ).then((_) => _refreshData());
+            break;
+
+          case 'edit':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MeterReadingEditPage(
+                  readingId: readingId,
+                ),
+              ),
+            ).then((_) => _refreshData());
+            break;
+
+          case 'confirm':
+            _confirmReading(readingId, readingNumber);
+            break;
+
+          case 'create_invoice':
+            _createInvoice(reading);
+            break;
+
+          case 'view_invoice':
+            // Navigator.push(
+            //   context,
+            //   MaterialPageRoute(
+            //     builder: (context) => InvoiceDetailPage(
+            //       invoiceId: invoiceId,
+            //     ),
+            //   ),
+            // );
+            break;
+
+          case 'cancel':
+            _cancelReading(readingId, readingNumber);
+            break;
+
+          case 'delete':
+            _deleteReading(readingId, readingNumber);
+            break;
+        }
+      },
+    );
+  }
+
+  // โหลดข้อมูลเริ่มต้น
+  Future<void> _loadInitialData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      _currentUser = await AuthService.getCurrentUser();
+      if (_currentUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      await Future.wait([
+        _loadBranches(),
+        _loadMeterReadings(),
+        _loadStats(),
+      ]);
+    } catch (e) {
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // โหลดสาขา
+  Future<void> _loadBranches() async {
+    try {
+      if (_currentUser?.userRole == UserRole.superAdmin) {
+        _branches = await BranchService.getAllBranches();
+      } else {
+        _branches = await BranchService.getBranchesByUser();
+      }
+      setState(() {});
+    } catch (e) {
+      debugPrint('Error loading branches: $e');
+    }
+  }
+
+  // โหลดห้องตามสาขาที่เลือก
+  Future<void> _loadRooms() async {
+    if (_selectedBranchId == null) return;
+
+    try {
+      final rooms = await RoomService.getAllRooms(branchId: _selectedBranchId);
+      setState(() => _rooms = rooms);
+    } catch (e) {
+      debugPrint('Error loading rooms: $e');
+    }
+  }
+
+  // โหลดข้อมูลค่ามิเตอร์
+  Future<void> _loadMeterReadings({bool isLoadMore = false}) async {
+    if (isLoadMore) {
+      setState(() => _isLoadingMore = true);
+    }
+
+    try {
+      final offset = isLoadMore ? _meterReadings.length : 0;
+
+      final readings = await MeterReadingService.getAllMeterReadings(
+        offset: offset,
+        limit: _pageSize,
+        searchQuery:
+            _searchController.text.isNotEmpty ? _searchController.text : null,
+        branchId: _selectedBranchId,
+        roomId: _selectedRoomId,
+        status: _selectedStatus == 'all' ? null : _selectedStatus,
+        readingMonth: _selectedMonth,
+        readingYear: _selectedYear,
+      );
+
+      setState(() {
+        if (isLoadMore) {
+          _meterReadings.addAll(readings);
+        } else {
+          _meterReadings = readings;
+          _currentPage = 0;
+        }
+        _hasMoreData = readings.length == _pageSize;
+      });
+
+      _applyFilters();
+    } catch (e) {
+      _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
+    } finally {
+      if (isLoadMore) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
+  }
+
+  // ใช้ตัวกรอง
+  void _applyFilters() {
+    if (!mounted || _meterReadings.isEmpty) {
+      setState(() => _filteredReadings = []);
+      return;
+    }
+
+    List<Map<String, dynamic>> filtered = List.from(_meterReadings);
+
+    // Filter by tab status
+    String tabStatus = _getStatusFromTab(_tabController.index);
+    if (tabStatus != 'all') {
+      filtered = filtered
+          .where((reading) => reading['reading_status'] == tabStatus)
+          .toList();
+    }
+
+    // Filter by search
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((reading) {
+        final readingNumber =
+            reading['reading_number']?.toString().toLowerCase() ?? '';
+        final roomNumber =
+            reading['room_number']?.toString().toLowerCase() ?? '';
+        final tenantName =
+            reading['tenant_name']?.toString().toLowerCase() ?? '';
+        final query = _searchQuery.toLowerCase();
+
+        return readingNumber.contains(query) ||
+            roomNumber.contains(query) ||
+            tenantName.contains(query);
+      }).toList();
+    }
+
+    setState(() => _filteredReadings = filtered);
+  }
+
+  String _getStatusFromTab(int index) {
+    switch (index) {
+      case 0:
+        return 'all';
+      case 1:
+        return 'draft';
+      case 2:
+        return 'confirmed';
+      case 3:
+        return 'billed';
+      case 4:
+        return 'cancelled';
+      default:
+        return 'all';
+    }
+  }
+
+  int _getReadingCountByStatus(String status) {
+    if (_stats == null) return 0;
+    if (status == 'all') return _stats!['total'] ?? 0;
+    return _stats![status] ?? 0;
+  }
+
+  // โหลดสถิติ
+  Future<void> _loadStats() async {
+    try {
+      final stats = await MeterReadingService.getMeterReadingStats(
+        branchId: _selectedBranchId,
+        month: _selectedMonth,
+        year: _selectedYear,
+      );
+      setState(() => _stats = stats);
+    } catch (e) {
+      debugPrint('Error loading stats: $e');
+    }
+  }
+
+  // รีเฟรชข้อมูล
+  Future<void> _refreshData() async {
+    await Future.wait([
+      _loadMeterReadings(),
+      _loadStats(),
+    ]);
+  }
+
+  // ยืนยันค่ามิเตอร์
+  Future<void> _confirmReading(String readingId, String readingNumber) async {
+    final currentUser = await AuthService.getCurrentUser();
+    if (currentUser == null) {
+      _showErrorSnackBar('กรุณาเข้าสู่ระบบใหม่');
+      return;
+    }
+
+    final canManage = currentUser.hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageMeterReadings,
+    ]);
+
+    if (!canManage) {
+      _showErrorSnackBar('ไม่มีสิทธิ์ในการยืนยันค่ามิเตอร์');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันค่ามิเตอร์'),
+        content: Text('ต้องการยืนยันค่ามิเตอร์ $readingNumber หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ยืนยัน'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final result = await MeterReadingService.confirmMeterReading(readingId);
+        if (result['success']) {
+          _showSuccessSnackBar('ยืนยันค่ามิเตอร์สำเร็จ');
+          _refreshData();
+        } else {
+          _showErrorSnackBar(result['message']);
+        }
+      } catch (e) {
+        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+      }
+    }
+  }
+
+  // ยกเลิกค่ามิเตอร์
+  Future<void> _cancelReading(String readingId, String readingNumber) async {
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยกเลิกค่ามิเตอร์'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('ต้องการยกเลิกค่ามิเตอร์ $readingNumber หรือไม่?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'เหตุผลในการยกเลิก',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ยืนยัน'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final result = await MeterReadingService.cancelMeterReading(
+          readingId,
+          reasonController.text,
+        );
+        if (result['success']) {
+          _showSuccessSnackBar('ยกเลิกค่ามิเตอร์สำเร็จ');
+          _refreshData();
+        } else {
+          _showErrorSnackBar(result['message']);
+        }
+      } catch (e) {
+        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+      }
+    }
+  }
+
+  // ลบค่ามิเตอร์
+  Future<void> _deleteReading(String readingId, String readingNumber) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ลบค่ามิเตอร์'),
+        content: Text(
+            'ต้องการลบค่ามิเตอร์ $readingNumber หรือไม่?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final result = await MeterReadingService.deleteMeterReading(readingId);
+        if (result['success']) {
+          _showSuccessSnackBar('ลบค่ามิเตอร์สำเร็จ');
+          _refreshData();
+        } else {
+          _showErrorSnackBar(result['message']);
+        }
+      } catch (e) {
+        _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+      }
+    }
+  }
+
+  // ออกบิล - นำไปที่หน้าสร้างบิลใหม่
+  Future<void> _createInvoice(Map<String, dynamic> reading) async {
+    final currentUser = await AuthService.getCurrentUser();
+    if (currentUser == null) {
+      _showErrorSnackBar('กรุณาเข้าสู่ระบบใหม่');
+      return;
+    }
+
+    final canManage = currentUser.hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageInvoices,
+    ]);
+
+    if (!canManage) {
+      _showErrorSnackBar('ไม่มีสิทธิ์ในการออกบิล');
+      return;
+    }
+
+    // ตรวจสอบว่าค่ามิเตอร์นี้ยืนยันแล้วหรือยัง
+    if (reading['reading_status'] != 'confirmed') {
+      _showErrorSnackBar('กรุณายืนยันค่ามิเตอร์ก่อนออกบิล');
+      return;
+    }
+
+    try {
+      // นำทางไปหน้าสร้างบิลใหม่พร้อมข้อมูลจากการอ่านมิเตอร์
+      final result = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvoiceAddPage(
+            // ส่งข้อมูลที่จำเป็นไปยังหน้าสร้างบิล
+            initialData: {
+              'room_id': reading['room_id'],
+              'tenant_id': reading['tenant_id'],
+              'contract_id': reading['contract_id'],
+              'reading_id': reading['reading_id'],
+              'invoice_month': reading['reading_month'],
+              'invoice_year': reading['reading_year'],
+              'room_number': reading['room_number'],
+              'tenant_name': reading['tenant_name'],
+              'branch_name': reading['branch_name'],
+              // ข้อมูลค่าน้ำ-ไฟ
+              'water_usage': reading['water_usage'],
+              'electric_usage': reading['electric_usage'],
+              'water_previous': reading['water_previous_reading'],
+              'water_current': reading['water_current_reading'],
+              'electric_previous': reading['electric_previous_reading'],
+              'electric_current': reading['electric_current_reading'],
+            },
+          ),
+        ),
+      );
+
+      // ถ้าสร้างบิลสำเร็จ ให้รีเฟรชข้อมูล
+      if (result != null && result['success'] == true) {
+        _showSuccessSnackBar('สร้างใบแจ้งหนี้สำเร็จ');
+        _refreshData();
+      }
+    } catch (e) {
+      _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+    }
+  }
+
+  // แสดง SnackBar สำเร็จ
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  // ฟังก์ชันช่วย
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'draft':
-        return Colors.orange;
-      case 'confirmed':
-        return Colors.green;
-      case 'billed':
-        return Colors.purple;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  // แสดง SnackBar ข้อผิดพลาด
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'draft':
-        return 'ร่าง';
-      case 'confirmed':
-        return 'ยืนยันแล้ว';
-      case 'billed':
-        return 'ออกบิลแล้ว';
-      case 'cancelled':
-        return 'ยกเลิก';
-      default:
-        return 'ไม่ทราบ';
-    }
+  void _showDetailedErrorDialog(String title, String message) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red[600], size: 28),
+            const SizedBox(width: 12),
+            Text(title),
+          ],
+        ),
+        content: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.red[200]!),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: TextStyle(color: Colors.red[900]),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'แนะนำ:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildSuggestionItem('• ตรวจสอบการตั้งค่าอัตราค่าน้ำ-ไฟ'),
+              _buildSuggestionItem('• ตรวจสอบสถานะสัญญาเช่า'),
+              _buildSuggestionItem('• ตรวจสอบว่ายืนยันค่ามิเตอร์แล้ว'),
+              _buildSuggestionItem('• ติดต่อผู้ดูแลระบบหากยังพบปัญหา'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ปิด'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: เปิดหน้าการตั้งค่าหรือคู่มือ
+            },
+            icon: const Icon(Icons.help_outline, size: 18),
+            label: const Text('คู่มือ'),
+          ),
+        ],
+      ),
+    );
   }
 
-  String _getMonthName(int month) {
-    const months = [
-      'มกราคม',
-      'กุมภาพันธ์',
-      'มีนาคม',
-      'เมษายน',
-      'พฤษภาคม',
-      'มิถุนายน',
-      'กรกฎาคม',
-      'สิงหาคม',
-      'กันยายน',
-      'ตุลาคม',
-      'พฤศจิกายน',
-      'ธันวาคม'
-    ];
-    return months[month - 1];
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'เมื่อสักครู่';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes} นาทีที่แล้ว';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours} ชั่วโมงที่แล้ว';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} วันที่แล้ว';
-    } else {
-      return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
-    }
+  Widget _buildSuggestionItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey[700],
+        ),
+      ),
+    );
   }
 }

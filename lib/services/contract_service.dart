@@ -59,6 +59,58 @@ class ContractService {
     }
   }
 
+  /// ดึงสัญญาตามห้อง (สำหรับการออกบิล)
+  static Future<List<Map<String, dynamic>>> getContractsByRoom(
+      String roomId) async {
+    try {
+      final result = await _supabase.from('rental_contracts').select('''
+        *,
+        tenants!inner(tenant_id, tenant_fullname, tenant_phone, tenant_idcard),
+        rooms!inner(room_id, room_number, room_price, room_deposit, branch_id, 
+          branches!inner(branch_name, branch_code))
+      ''').eq('room_id', roomId).order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(result).map((contract) {
+        return {
+          ...contract,
+          'tenant_name': contract['tenants']?['tenant_fullname'] ?? '-',
+          'tenant_phone': contract['tenants']?['tenant_phone'] ?? '-',
+          'room_number': contract['rooms']?['room_number'] ?? '-',
+          'branch_name': contract['rooms']?['branches']?['branch_name'] ?? '-',
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดสัญญาของห้อง: $e');
+    }
+  }
+
+  /// ดึงสัญญาที่ Active ของห้อง
+  static Future<Map<String, dynamic>?> getActiveContractByRoom(
+      String roomId) async {
+    try {
+      final result = await _supabase.from('rental_contracts').select('''
+        *,
+        tenants!inner(tenant_id, tenant_fullname, tenant_phone, tenant_idcard),
+        rooms!inner(room_id, room_number, room_price, room_deposit, branch_id, 
+          branches!inner(branch_name, branch_code))
+      ''').eq('room_id', roomId).eq('contract_status', 'active').maybeSingle();
+
+      if (result != null) {
+        return {
+          ...result,
+          'tenant_name': result['tenants']?['tenant_fullname'] ?? '-',
+          'tenant_phone': result['tenants']?['tenant_phone'] ?? '-',
+          'room_number': result['rooms']?['room_number'] ?? '-',
+          'branch_name': result['rooms']?['branches']?['branch_name'] ?? '-',
+        };
+      }
+
+      return null;
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดสัญญาที่ใช้งาน: $e');
+    }
+  }
+
   /// ดึงข้อมูลสัญญาตาม ID
   static Future<Map<String, dynamic>?> getContractById(
       String contractId) async {
@@ -375,6 +427,86 @@ class ContractService {
     }
   }
 
+  /// ดึงสถิติสัญญา
+  static Future<Map<String, dynamic>> getContractStats({
+    String? branchId,
+  }) async {
+    try {
+      var query = _supabase.from('rental_contracts').select('contract_status');
+
+      if (branchId != null) {
+        query = _supabase.from('rental_contracts').select('''
+          contract_status,
+          rooms!inner(branch_id)
+        ''').eq('rooms.branch_id', branchId);
+      }
+
+      final result = await query;
+
+      final total = result.length;
+      final active =
+          result.where((c) => c['contract_status'] == 'active').length;
+      final pending =
+          result.where((c) => c['contract_status'] == 'pending').length;
+      final expired =
+          result.where((c) => c['contract_status'] == 'expired').length;
+      final terminated =
+          result.where((c) => c['contract_status'] == 'terminated').length;
+
+      return {
+        'total': total,
+        'active': active,
+        'pending': pending,
+        'expired': expired,
+        'terminated': terminated,
+      };
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดสถิติ: $e');
+    }
+  }
+
+  /// ตรวจสอบสัญญาที่หมดอายุ
+  static Future<List<Map<String, dynamic>>> getExpiringContracts({
+    int daysBeforeExpiry = 30,
+    String? branchId,
+  }) async {
+    try {
+      final targetDate = DateTime.now()
+          .add(Duration(days: daysBeforeExpiry))
+          .toIso8601String()
+          .split('T')[0];
+
+      var query = _supabase.from('rental_contracts').select('''
+        *,
+        tenants!inner(tenant_id, tenant_fullname, tenant_phone),
+        rooms!inner(room_id, room_number, branch_id,
+          branches!inner(branch_name))
+      ''').eq('contract_status', 'active').lte('end_date', targetDate);
+
+      if (branchId != null) {
+        query = query.eq('rooms.branch_id', branchId);
+      }
+
+      final result = await query.order('end_date', ascending: true);
+
+      return List<Map<String, dynamic>>.from(result).map((contract) {
+        final endDate = DateTime.parse(contract['end_date']);
+        final daysUntilExpiry = endDate.difference(DateTime.now()).inDays;
+
+        return {
+          ...contract,
+          'tenant_name': contract['tenants']?['tenant_fullname'] ?? '-',
+          'tenant_phone': contract['tenants']?['tenant_phone'] ?? '-',
+          'room_number': contract['rooms']?['room_number'] ?? '-',
+          'branch_name': contract['rooms']?['branches']?['branch_name'] ?? '-',
+          'days_until_expiry': daysUntilExpiry,
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
+    }
+  }
+
   /// สร้างเลขที่สัญญาอัตโนมัติ
   static Future<String> _generateContractNumber() async {
     final now = DateTime.now();
@@ -398,4 +530,14 @@ class ContractService {
 
     return '$prefix${nextNumber.toString().padLeft(4, '0')}';
   }
+}
+
+// เพื่อความเข้ากันได้กับโค้ดเดิม
+class RentalContractService extends ContractService {
+  // Alias methods สำหรับความเข้ากันได้
+  static Future<List<Map<String, dynamic>>> getContractsByRoom(String roomId) =>
+      ContractService.getContractsByRoom(roomId);
+
+  static Future<Map<String, dynamic>?> getActiveContractByRoom(String roomId) =>
+      ContractService.getActiveContractByRoom(roomId);
 }
