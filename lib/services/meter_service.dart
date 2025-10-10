@@ -77,6 +77,7 @@ class MeterReadingService {
       return List<Map<String, dynamic>>.from(result).map((reading) {
         return {
           ...reading,
+          'branch_id': reading['rooms']?['branch_id'],
           'tenant_name': reading['tenants']?['tenant_fullname'] ?? '-',
           'tenant_phone': reading['tenants']?['tenant_phone'] ?? '-',
           'room_number': reading['rooms']?['room_number'] ?? '-',
@@ -104,6 +105,7 @@ class MeterReadingService {
       if (result != null) {
         return {
           ...result,
+          'branch_id': result['rooms']?['branch_id'],
           'tenant_name': result['tenants']?['tenant_fullname'] ?? '-',
           'tenant_phone': result['tenants']?['tenant_phone'] ?? '-',
           'room_number': result['rooms']?['room_number'] ?? '-',

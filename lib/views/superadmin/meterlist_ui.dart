@@ -1146,6 +1146,13 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
         readingYear: _selectedYear,
       );
 
+      for (var reading in readings) {
+        if (reading['branch_id'] == null) {
+          debugPrint(
+              '⚠️ Warning: Reading ${reading['reading_id']} missing branch_id');
+        }
+      }
+
       setState(() {
         if (isLoadMore) {
           _meterReadings.addAll(readings);
@@ -1414,7 +1421,22 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       return;
     }
 
+    if (reading['branch_id'] == null) {
+      _showErrorSnackBar('ไม่พบข้อมูลสาขา');
+      return;
+    }
+
     try {
+      String? branchId = reading['branch_id'];
+      if (branchId == null && reading['room_id'] != null) {
+        final room = await RoomService.getRoomById(reading['room_id']);
+        branchId = room?['branch_id'];
+      }
+
+      if (branchId == null) {
+        _showErrorSnackBar('ไม่พบข้อมูลสาขา กรุณาตรวจสอบข้อมูลห้องพัก');
+        return;
+      }
       // นำทางไปหน้าสร้างบิลใหม่พร้อมข้อมูลจากการอ่านมิเตอร์
       final result = await Navigator.push<Map<String, dynamic>>(
         context,
@@ -1423,6 +1445,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
             // ส่งข้อมูลที่จำเป็นไปยังหน้าสร้างบิล
             initialData: {
               'room_id': reading['room_id'],
+              'branch_id': branchId,
               'tenant_id': reading['tenant_id'],
               'contract_id': reading['contract_id'],
               'reading_id': reading['reading_id'],
