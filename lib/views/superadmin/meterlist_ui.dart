@@ -1445,7 +1445,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
             // ส่งข้อมูลที่จำเป็นไปยังหน้าสร้างบิล
             initialData: {
               'room_id': reading['room_id'],
-              'branch_id': branchId,
+              'branch_id': reading['branch_id'],
               'tenant_id': reading['tenant_id'],
               'contract_id': reading['contract_id'],
               'reading_id': reading['reading_id'],
