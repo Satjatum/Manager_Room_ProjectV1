@@ -52,12 +52,33 @@ class BranchService {
         return await getAllBranches(isActive: true);
       }
 
-      // If user has manage branches permission, return all branches
-      if (currentUser.hasAnyPermission([
-        DetailedPermission.all,
-        DetailedPermission.manageBranches,
-      ])) {
+      // SuperAdmin can see all branches
+      if (currentUser.userRole == UserRole.superAdmin) {
         return getAllBranches(isActive: true);
+      }
+
+      // Admin can only see branches they manage
+      if (currentUser.userRole == UserRole.admin) {
+        final result = await _supabase
+            .from('branch_managers')
+            .select('branch_id')
+            .eq('user_id', currentUser.userId);
+
+        if (result.isEmpty) {
+          return []; // Admin ไม่ได้ดูแลสาขาใดเลย
+        }
+
+        // Get list of branch IDs that this admin manages
+        final branchIds = result.map((item) => item['branch_id']).toList();
+
+        // Fetch full branch data from branches_with_managers view
+        final branches = await _supabase
+            .from('branches_with_managers')
+            .select('*')
+            .inFilter('branch_id', branchIds)
+            .order('branch_name');
+
+        return List<Map<String, dynamic>>.from(branches);
       }
 
       // For other users, return branches they have access to

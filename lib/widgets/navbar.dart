@@ -129,19 +129,14 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'สาขา',
       ),
       NavItem(
-        icon: Icons.hotel_outlined,
-        activeIcon: Icons.hotel,
-        label: 'ห้องพัก',
-      ),
-      NavItem(
-        icon: Icons.people_outline,
-        activeIcon: Icons.people,
-        label: 'ผู้เช่า',
+        icon: Icons.analytics_outlined,
+        activeIcon: Icons.analytics,
+        label: 'ปัญหา',
       ),
       NavItem(
         icon: Icons.analytics_outlined,
         activeIcon: Icons.analytics,
-        label: 'ปัญหา',
+        label: 'มิเตอร์',
       ),
       NavItem(
         icon: Icons.settings_outlined,
@@ -151,12 +146,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
     ];
 
     _pages = [
-      const AdmindashUi(),
-      const BranchlistUi(),
-      const RoomListUI(),
-      const TenantListUI(),
-      const IssuesListScreen(),
-      const SettingUi(),
+      const SuperadmindashUi(), // Dashboard
+      const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
+      const IssuesListScreen(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
+      const MeterReadingsListPage(), // Meters - ใส่ page ที่ถูกต้องตรงนี้
+      const SettingUi(), // Settings
     ];
   }
 

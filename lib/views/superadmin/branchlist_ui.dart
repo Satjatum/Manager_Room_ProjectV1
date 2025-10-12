@@ -65,10 +65,13 @@ class _BranchlistUiState extends State<BranchlistUi> {
         // Anonymous users see only active branches
         branches = await BranchService.getActiveBranches();
       } else if (_currentUser!.userRole == UserRole.superAdmin) {
+        // Superadmin sees all branches in the system
         branches = await BranchService.getAllBranches();
       } else if (_currentUser!.userRole == UserRole.admin) {
+        // Admin sees only branches they manage
         branches = await BranchService.getBranchesByUser();
       } else {
+        // Other users see branches they have access to
         branches = await BranchService.getBranchesByUser();
       }
 
@@ -1108,61 +1111,47 @@ class _BranchlistUiState extends State<BranchlistUi> {
                   if (canManage)
                     Row(
                       children: [
-                        // ปุ่มดูรายละเอียด
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => BranchListDetail(
-                                    branchId: branch['branch_id'],
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: Icon(Icons.visibility, size: 16),
-                            label: Text('ดู'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppTheme.primary,
-                              side: BorderSide(color: AppTheme.primary),
-                              padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'จัดการสาขา',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
-                        SizedBox(width: 8),
-
-                        // ปุ่มแก้ไข
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => BranchEditPage(
-                                    branchId: branch['branch_id'],
-                                  ),
-                                ),
-                              );
-                              if (result == true) {
-                                await _loadBranches();
-                              }
-                            },
-                            icon: Icon(Icons.edit, size: 16),
-                            label: Text('แก้ไข'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primary,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-
-                        // ปุ่ม Menu เพิ่มเติม
+                        // ปุ่ม PopupMenu รวมทุกอย่าง
                         PopupMenuButton<String>(
                           onSelected: (value) {
                             switch (value) {
+                              case 'view':
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BranchListDetail(
+                                      branchId: branch['branch_id'],
+                                    ),
+                                  ),
+                                );
+                                break;
+                              case 'edit':
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BranchEditPage(
+                                      branchId: branch['branch_id'],
+                                    ),
+                                  ),
+                                ).then((result) {
+                                  if (result == true) {
+                                    _loadBranches();
+                                  }
+                                });
+                                break;
                               case 'toggle':
                                 _toggleBranchStatus(
                                   branch['branch_id'],
@@ -1182,6 +1171,46 @@ class _BranchlistUiState extends State<BranchlistUi> {
                             }
                           },
                           itemBuilder: (context) => [
+                            // ดูรายละเอียด
+                            PopupMenuItem(
+                              value: 'view',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.visibility,
+                                    size: 16,
+                                    color: AppTheme.primary,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('ดูรายละเอียด'),
+                                ],
+                              ),
+                            ),
+
+                            // แก้ไข
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: Colors.blue,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('แก้ไข'),
+                                ],
+                              ),
+                            ),
+
+                            // Divider
+                            PopupMenuItem(
+                              enabled: false,
+                              height: 1,
+                              child: Divider(height: 1),
+                            ),
+
+                            // เปิด/ปิดใช้งาน
                             PopupMenuItem(
                               value: 'toggle',
                               child: Row(
@@ -1199,6 +1228,8 @@ class _BranchlistUiState extends State<BranchlistUi> {
                                 ],
                               ),
                             ),
+
+                            // ลบถาวร (เฉพาะ SuperAdmin)
                             if (_currentUser?.userRole == UserRole.superAdmin)
                               PopupMenuItem(
                                 value: 'delete',
@@ -1215,9 +1246,31 @@ class _BranchlistUiState extends State<BranchlistUi> {
                                 ),
                               ),
                           ],
-                          icon: Icon(
-                            Icons.more_vert,
-                            color: Colors.grey[600],
+                          child: Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppTheme.primary.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.settings,
+                                  size: 16,
+                                  color: AppTheme.primary,
+                                ),
+                                SizedBox(width: 4),
+                                Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 16,
+                                  color: AppTheme.primary,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

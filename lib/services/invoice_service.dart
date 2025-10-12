@@ -86,15 +86,15 @@ class InvoiceService {
   static Future<Map<String, dynamic>?> getInvoiceById(String invoiceId) async {
     try {
       final result = await _supabase.from('invoices').select('''
-        *,
-        rooms!inner(room_id, room_number, room_price, branch_id,
-          branches!inner(branch_name, branch_code)),
-        tenants!inner(tenant_id, tenant_fullname, tenant_phone, tenant_idcard),
-        rental_contracts!inner(contract_id, contract_num, contract_price)
-      ''').eq('invoice_id', invoiceId).maybeSingle();
+      *,
+      rooms!inner(room_id, room_number, room_price, branch_id,
+        branches!inner(branch_name, branch_code)),
+      tenants!inner(tenant_id, tenant_fullname, tenant_phone, tenant_idcard),
+      rental_contracts!inner(contract_id, contract_num, contract_price)
+    ''').eq('invoice_id', invoiceId).maybeSingle();
 
       if (result != null) {
-        // ดึงรายละเอียดค่าสาธารณูปโภค
+        // ✅ ดึงรายละเอียดค่าสาธารณูปโภคจาก invoice_utilities
         final utilities = await _supabase
             .from('invoice_utilities')
             .select('*')
@@ -224,47 +224,108 @@ class InvoiceService {
       // สร้างเลขที่บิล
       final invoiceNumber = await _generateInvoiceNumber();
 
-      // คำนวณยอดรวมจากข้อมูลที่ส่งมา
+      // คำนวดยอดรวม
       final roomRent = invoiceData["room_rent"] ?? 0.0;
       final waterCost = invoiceData["water_cost"] ?? 0.0;
       final electricCost = invoiceData["electric_cost"] ?? 0.0;
       final otherExpenses = invoiceData["other_expenses"] ?? 0.0;
-      final discount = invoiceData["discount"] ?? 0.0;
+      final discount = invoiceData["discount_amount"] ?? 0.0;
 
-      final subTotal = roomRent + waterCost + electricCost + otherExpenses;
+      // ✅ ค่า utilities รวม = น้ำ + ไฟ
+      final utilitiesTotal = waterCost + electricCost;
+      final subTotal = roomRent + utilitiesTotal + otherExpenses;
       final grandTotal = subTotal - discount;
 
-      // เตรียมข้อมูลสำหรับบันทึก
+      // เตรียมข้อมูลสำหรับบันทึก invoice หลัก
       final insertData = {
         "invoice_number": invoiceNumber,
         "contract_id": invoiceData["contract_id"],
         "room_id": invoiceData["room_id"],
         "tenant_id": invoiceData["tenant_id"],
-        "meter_reading_id":
-            invoiceData["meter_reading_id"], // Link to meter reading
         "invoice_month": invoiceData["invoice_month"],
         "invoice_year": invoiceData["invoice_year"],
-        "invoice_date": invoiceData["invoice_date"],
+        "issue_date": invoiceData["invoice_date"] ??
+            DateTime.now().toIso8601String().split('T')[0],
         "due_date": invoiceData["due_date"],
-        "room_rent": roomRent,
-        "water_usage": invoiceData["water_usage"],
-        "water_rate": invoiceData["water_rate"],
-        "water_cost": waterCost,
-        "electric_usage": invoiceData["electric_usage"],
-        "electric_rate": invoiceData["electric_rate"],
-        "electric_cost": electricCost,
-        "other_expenses": otherExpenses,
-        "discount": discount,
-        "sub_total": subTotal,
-        "grand_total": grandTotal,
+
+        // ✅ ค่าเช่า
+        "rental_amount": roomRent,
+
+        // ✅ ค่าสาธารณูปโภครวม (น้ำ + ไฟ)
+        "utilities_amount": utilitiesTotal,
+
+        // ✅ ค่าใช้จ่ายอื่นๆ
+        "other_charges": otherExpenses,
+
+        // ✅ ส่วนลด
+        "discount_amount": discount,
+
+        // ✅ ยอดรวม
+        "subtotal": subTotal,
+        "total_amount": grandTotal,
+
+        // ✅ หมายเหตุ
         "invoice_notes": invoiceData["notes"],
+
+        // ✅ สถานะ
         "invoice_status": "pending",
         "paid_amount": 0.0,
+
+        // ✅ ผู้สร้าง
         "created_by": currentUser.userId,
       };
 
+      // ✅ สร้าง invoice หลักก่อน
       final result =
           await _supabase.from('invoices').insert(insertData).select().single();
+
+      final invoiceId = result['invoice_id'];
+
+      // ✅ สร้างรายละเอียดค่าน้ำใน invoice_utilities
+      if (waterCost > 0) {
+        await _supabase.from('invoice_utilities').insert({
+          'invoice_id': invoiceId,
+          'rate_id': invoiceData["water_rate_id"], // ✅ ใช้ rate_id ที่ส่งมา
+          'utility_name': 'ค่าน้ำ',
+          'unit_price': invoiceData["water_rate"] ?? 0.0,
+          'usage_amount': invoiceData["water_usage"] ?? 0.0,
+          'fixed_amount': 0.0,
+          'additional_charge': 0.0,
+          'total_amount': waterCost,
+          'reading_id': invoiceData["meter_reading_id"],
+        });
+      }
+
+// ✅ สร้างรายละเอียดค่าไฟใน invoice_utilities
+      if (electricCost > 0) {
+        await _supabase.from('invoice_utilities').insert({
+          'invoice_id': invoiceId,
+          'rate_id': invoiceData["electric_rate_id"], // ✅ ใช้ rate_id ที่ส่งมา
+          'utility_name': 'ค่าไฟ',
+          'unit_price': invoiceData["electric_rate"] ?? 0.0,
+          'usage_amount': invoiceData["electric_usage"] ?? 0.0,
+          'fixed_amount': 0.0,
+          'additional_charge': 0.0,
+          'total_amount': electricCost,
+          'reading_id': invoiceData["meter_reading_id"],
+        });
+      }
+      // ✅ สร้างรายการค่าบริการคงที่ (fixed rates)
+      final fixedRates =
+          invoiceData["fixed_rates"] as List<Map<String, dynamic>>? ?? [];
+      for (var rate in fixedRates) {
+        await _supabase.from('invoice_utilities').insert({
+          'invoice_id': invoiceId,
+          'rate_id': rate['rate_id'],
+          'utility_name': rate['rate_name'],
+          'unit_price': 0.0,
+          'usage_amount': 0.0,
+          'fixed_amount': rate['fixed_amount'] ?? 0.0,
+          'additional_charge': rate['additional_charge'] ?? 0.0,
+          'total_amount': (rate['fixed_amount'] ?? 0.0) +
+              (rate['additional_charge'] ?? 0.0),
+        });
+      }
 
       return {
         'success': true,
@@ -281,62 +342,6 @@ class InvoiceService {
         'success': false,
         'message': 'เกิดข้อผิดพลาดในการสร้างใบแจ้งหนี้: $e',
       };
-    }
-  }
-
-  /// ออกบิลจากค่ามิเตอร์
-  static Future<Map<String, dynamic>> generateInvoiceFromReading(
-      String readingId) async {
-    try {
-      final currentUser = await AuthService.getCurrentUser();
-      if (currentUser == null) {
-        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
-      }
-
-      // ตรวจสอบสิทธิ์
-      if (!currentUser.hasAnyPermission([
-        DetailedPermission.all,
-        DetailedPermission.manageInvoices,
-      ])) {
-        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการออกบิล'};
-      }
-
-      // เรียกใช้ Supabase RPC function เพื่อออกบิล
-      final response = await _supabase.rpc(
-          'generate_invoice_from_meter_reading',
-          params: {'p_reading_id': readingId});
-
-      if (response == null) {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถออกบิลได้ กรุณาตรวจสอบการตั้งค่าอัตราค่าน้ำ-ไฟ'
-        };
-      }
-
-      return {
-        'success': true,
-        'invoice_id': response['invoice_id'],
-        'invoice_number': response['invoice_number'],
-        'message': 'ออกบิลสำเร็จ'
-      };
-    } on PostgrestException catch (e) {
-      String errorMessage = 'เกิดข้อผิดพลาดในการออกบิล';
-
-      if (e.code == 'P0001') {
-        errorMessage = e.message;
-      } else if (e.code == '23505') {
-        errorMessage = 'มีบิลสำหรับเดือนนี้แล้ว';
-      } else if (e.code == '23503') {
-        errorMessage = 'ไม่พบข้อมูลที่เกี่ยวข้อง';
-      }
-
-      return {
-        'success': false,
-        'message': errorMessage,
-        'error_code': e.code,
-      };
-    } catch (e) {
-      return {'success': false, 'message': 'เกิดข้อผิดพลาด: ${e.toString()}'};
     }
   }
 
@@ -376,7 +381,7 @@ class InvoiceService {
         };
       }
 
-      // คำนวณยอดรวมใหม่
+      // คำนวดยอดรวมใหม่
       final rentalAmount =
           invoiceData['rental_amount'] ?? existing['rental_amount'];
       final utilitiesAmount =
@@ -646,7 +651,7 @@ class InvoiceService {
       final cancelled =
           result.where((r) => r['invoice_status'] == 'cancelled').length;
 
-      // คำนวณยอดเงิน
+      // คำนวดยอดเงิน
       final invoices = await _supabase
           .from('invoices')
           .select('total_amount, paid_amount, invoice_status');
@@ -700,7 +705,7 @@ class InvoiceService {
     }
   }
 
-  /// คำนวณค่าปรับล่าช้า
+  /// คำนวดค่าปรับล่าช้า
   static double calculateLateFee({
     required DateTime dueDate,
     required double totalAmount,
@@ -842,6 +847,61 @@ class InvoiceService {
       }).toList();
     } catch (e) {
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> generateInvoiceFromReading(
+      String readingId) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
+      }
+
+      // ตรวจสอบสิทธิ์
+      if (!currentUser.hasAnyPermission([
+        DetailedPermission.all,
+        DetailedPermission.manageInvoices,
+      ])) {
+        return {'success': false, 'message': 'ไม่มีสิทธิ์ในการออกบิล'};
+      }
+
+      // เรียกใช้ Supabase RPC function เพื่อออกบิล
+      final response = await _supabase.rpc(
+          'generate_invoice_from_meter_reading',
+          params: {'p_reading_id': readingId});
+
+      if (response == null) {
+        return {
+          'success': false,
+          'message': 'ไม่สามารถออกบิลได้ กรุณาตรวจสอบการตั้งค่าอัตราค่าน้ำ-ไฟ'
+        };
+      }
+
+      return {
+        'success': true,
+        'invoice_id': response['invoice_id'],
+        'invoice_number': response['invoice_number'],
+        'message': 'ออกบิลสำเร็จ'
+      };
+    } on PostgrestException catch (e) {
+      String errorMessage = 'เกิดข้อผิดพลาดในการออกบิล';
+
+      if (e.code == 'P0001') {
+        errorMessage = e.message;
+      } else if (e.code == '23505') {
+        errorMessage = 'มีบิลสำหรับเดือนนี้แล้ว';
+      } else if (e.code == '23503') {
+        errorMessage = 'ไม่พบข้อมูลที่เกี่ยวข้อง';
+      }
+
+      return {
+        'success': false,
+        'message': errorMessage,
+        'error_code': e.code,
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'เกิดข้อผิดพลาด: ${e.toString()}'};
     }
   }
 

@@ -37,6 +37,8 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
   List<Map<String, dynamic>> _branches = [];
   List<Map<String, dynamic>> _rooms = [];
   List<Map<String, dynamic>> _contracts = [];
+  List<Map<String, dynamic>> _fixedRates = [];
+  List<Map<String, dynamic>> _selectedFixedRates = [];
   Map<String, dynamic>? _paymentSettings;
 
   // Form data
@@ -45,6 +47,8 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
   String? _selectedTenantId;
   String? _selectedContractId;
   String? _readingId;
+  String? _waterRateId;
+  String? _electricRateId;
   int _invoiceMonth = DateTime.now().month;
   int _invoiceYear = DateTime.now().year;
   DateTime _dueDate = DateTime.now().add(const Duration(days: 7));
@@ -126,15 +130,15 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
             widget.initialData!['invoice_year'] ?? DateTime.now().year;
 
         debugPrint(
-            '📋 Initial Data: branch=$_selectedBranchId, room=$_selectedRoomId, reading=$_readingId');
+            '📋 ข้อมูลเริ่มต้น: สาขา=$_selectedBranchId, ห้อง=$_selectedRoomId, มิเตอร์=$_readingId');
       }
 
       // 3. โหลด branches
       try {
         _branches = await RoomService.getBranchesForRoomFilter();
-        debugPrint('✅ Loaded ${_branches.length} branches');
+        debugPrint('✅ โหลดสาขาแล้ว ${_branches.length} สาขา');
       } catch (e) {
-        debugPrint('❌ Error loading branches: $e');
+        debugPrint('❌ ข้อผิดพลาดในการโหลดสาขา: $e');
         _showErrorSnackBar('ไม่สามารถโหลดข้อมูลสาขาได้: $e');
       }
 
@@ -145,7 +149,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
       setState(() {});
     } catch (e) {
-      debugPrint('❌ Error in _initializeData: $e');
+      debugPrint('❌ ข้อผิดพลาดใน _initializeData: $e');
       _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -155,7 +159,6 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
   // ฟังก์ชันใหม่: โหลดข้อมูลเมื่อมี branch_id
   Future<void> _loadDataForBranch() async {
     try {
-      // โหลดแบบ parallel
       final results = await Future.wait([
         RoomService.getAllRooms(branchId: _selectedBranchId),
         UtilityRatesService.getActiveRatesForBranch(_selectedBranchId!),
@@ -165,30 +168,37 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
       ]);
 
       _rooms = results[0] as List<Map<String, dynamic>>;
-      debugPrint('✅ Loaded ${_rooms.length} rooms');
-
       final utilityRates = results[1] as List<Map<String, dynamic>>;
-      debugPrint('✅ Loaded ${utilityRates.length} utility rates');
-
-      // ⭐ โหลด payment settings
       _paymentSettings = results[2] as Map<String, dynamic>?;
-      debugPrint(
-          '✅ Loaded payment settings: ${_paymentSettings != null ? "Yes" : "No"}');
 
-      // ตั้งค่า rate
+      // แยกค่า rates ออกเป็น metered และ fixed
+      _fixedRates =
+          utilityRates.where((rate) => rate['is_fixed'] == true).toList();
+
+      // ✅ เก็บ rate_id สำหรับน้ำและไฟ
+      String? waterRateId;
+      String? electricRateId;
+
+      // ตั้งค่า rate สำหรับน้ำและไฟ
       for (var rate in utilityRates) {
-        final rateName = rate['rate_name'].toString().toLowerCase();
-        if (rateName.contains('น้ำ') || rateName.contains('water')) {
-          _waterRate = (rate['rate_price'] ?? 0.0).toDouble();
-          debugPrint('💧 Water rate: $_waterRate');
-        }
-        if (rateName.contains('ไฟ') || rateName.contains('electric')) {
-          _electricRate = (rate['rate_price'] ?? 0.0).toDouble();
-          debugPrint('⚡ Electric rate: $_electricRate');
+        if (rate['is_metered'] == true) {
+          final rateName = rate['rate_name'].toString().toLowerCase();
+          if (rateName.contains('น้ำ') || rateName.contains('water')) {
+            _waterRate = (rate['rate_price'] ?? 0.0).toDouble();
+            waterRateId = rate['rate_id'];
+          }
+          if (rateName.contains('ไฟ') || rateName.contains('electric')) {
+            _electricRate = (rate['rate_price'] ?? 0.0).toDouble();
+            electricRateId = rate['rate_id'];
+          }
         }
       }
 
-      // ถ้ามี reading ให้ใช้ข้อมูลจาก reading
+      // ✅ เก็บ rate_id เป็น instance variable
+      _waterRateId = waterRateId;
+      _electricRateId = electricRateId;
+
+      // ✅ Apply meter reading data ถ้ามี
       if (_readingId != null && results.length > 3) {
         final reading = results[3] as Map<String, dynamic>?;
         if (reading != null) {
@@ -196,14 +206,42 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
         }
       }
 
-      // โหลด contracts
+      // ✅ โหลด contracts สำหรับห้องที่เลือก
       if (_selectedRoomId != null) {
         await _loadContractsForRoom();
       }
     } catch (e) {
-      debugPrint('❌ Error loading data for branch: $e');
+      debugPrint('ข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
       _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
     }
+  }
+
+  void _addFixedRate(Map<String, dynamic> rate) {
+    setState(() {
+      _selectedFixedRates.add({
+        'rate_id': rate['rate_id'],
+        'rate_name': rate['rate_name'],
+        'fixed_amount': rate['fixed_amount'],
+        'additional_charge': rate['additional_charge'] ?? 0.0,
+      });
+      _calculateOtherChargesTotal();
+    });
+  }
+
+  void _removeFixedRate(int index) {
+    setState(() {
+      _selectedFixedRates.removeAt(index);
+      _calculateOtherChargesTotal();
+    });
+  }
+
+  void _calculateOtherChargesTotal() {
+    double total = 0.0;
+    for (var rate in _selectedFixedRates) {
+      total += (rate['fixed_amount'] ?? 0.0).toDouble();
+      total += (rate['additional_charge'] ?? 0.0).toDouble();
+    }
+    _otherCharges = total;
   }
 
   // ฟังก์ชันใหม่: Apply ข้อมูลจาก meter reading
@@ -223,7 +261,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     _electricCurrentController.text =
         _electricCurrentReading.toStringAsFixed(0);
 
-    // คำนวณค่าใช้จ่าย
+    // คำนวดค่าใช้จ่าย
     if (_waterUsage > 0 && _waterRate > 0) {
       _waterCost = _waterUsage * _waterRate;
     }
@@ -233,15 +271,14 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
     _calculateUtilitiesTotal();
 
-    debugPrint(
-        '📊 Applied meter reading: water=$_waterUsage, electric=$_electricUsage');
+    debugPrint('📊 ใช้ข้อมูลมิเตอร์: น้ำ=$_waterUsage, ไฟ=$_electricUsage');
   }
 
   // ⭐ ฟังก์ชันใหม่: โหลด contracts สำหรับห้อง พร้อมดึงค่าเช่า
   Future<void> _loadContractsForRoom() async {
     try {
       _contracts = await ContractService.getContractsByRoom(_selectedRoomId!);
-      debugPrint('✅ Loaded ${_contracts.length} contracts');
+      debugPrint('✅ โหลดสัญญาเช่าแล้ว ${_contracts.length} สัญญา');
 
       if (_contracts.isNotEmpty) {
         if (_selectedContractId == null) {
@@ -262,7 +299,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
               (selectedContract['contract_price'] ?? 0.0).toDouble();
 
           debugPrint(
-              '🏠 Selected contract: $_selectedContractId, rent: $_rentalAmount');
+              '🏠 เลือกสัญญา: $_selectedContractId, เช่า: $_rentalAmount');
         } else {
           // ⭐ ถ้ามี contract_id แล้ว ให้ดึงค่าเช่าจาก contract ที่เลือก
           final selectedContract = _contracts.firstWhere(
@@ -272,7 +309,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           if (selectedContract.isNotEmpty) {
             _rentalAmount =
                 (selectedContract['contract_price'] ?? 0.0).toDouble();
-            debugPrint('🏠 Contract rental amount: $_rentalAmount');
+            debugPrint('🏠 ค่าเช่าจากสัญญา: $_rentalAmount');
           }
         }
       }
@@ -286,11 +323,11 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           _waterPreviousReading = suggestions['water_previous'] ?? 0.0;
           _electricPreviousReading = suggestions['electric_previous'] ?? 0.0;
           debugPrint(
-              '💡 Suggested previous readings: water=$_waterPreviousReading, electric=$_electricPreviousReading');
+              '💡 ค่าก่อนหน้าที่แนะนำ: น้ำ=$_waterPreviousReading, ไฟ=$_electricPreviousReading');
         }
       }
     } catch (e) {
-      debugPrint('❌ Error loading contracts: $e');
+      debugPrint('❌ ข้อผิดพลาดในการโหลดสัญญา: $e');
     }
   }
 
@@ -313,7 +350,8 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
       // ⭐ เก็บ payment settings
       _paymentSettings = results[2] as Map<String, dynamic>?;
-      debugPrint('💰 Payment settings loaded: ${_paymentSettings != null}');
+      debugPrint(
+          '💰 โหลดการตั้งค่าการชำระเงินแล้ว: ${_paymentSettings != null}');
 
       // ตั้งค่า rate
       for (var rate in utilityRates) {
@@ -326,7 +364,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
         }
       }
 
-      // คำนวณค่าใช้จ่าย
+      // คำนวดค่าใช้จ่าย
       if (_waterUsage > 0 && _waterRate > 0) {
         _waterCost = _waterUsage * _waterRate;
       }
@@ -344,7 +382,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
       setState(() {});
     } catch (e) {
-      debugPrint('Error loading rooms and contracts: $e');
+      debugPrint('ข้อผิดพลาดในการโหลดห้องและสัญญา: $e');
     }
   }
 
@@ -363,7 +401,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
       // ⭐ ดึงค่าเช่า
       _rentalAmount = (selectedContract['contract_price'] ?? 0.0).toDouble();
-      debugPrint('🏠 Applied rental amount from contract: $_rentalAmount');
+      debugPrint('🏠 ใช้ค่าเช่าจากสัญญา: $_rentalAmount');
     } else {
       final contract = _contracts.firstWhere(
         (c) => c['contract_id'] == _selectedContractId,
@@ -372,8 +410,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
       if (contract.isNotEmpty) {
         // ⭐ ดึงค่าเช่า
         _rentalAmount = (contract['contract_price'] ?? 0.0).toDouble();
-        debugPrint(
-            '🏠 Applied rental amount from selected contract: $_rentalAmount');
+        debugPrint('🏠 ใช้ค่าเช่าจากสัญญาที่เลือก: $_rentalAmount');
       }
     }
   }
@@ -420,7 +457,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
       setState(() {});
     } catch (e) {
-      debugPrint('Error loading contract data: $e');
+      debugPrint('ข้อผิดพลาดในการโหลดข้อมูลสัญญา: $e');
     }
   }
 
@@ -432,13 +469,13 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     return _rentalAmount + _utilitiesAmount + _otherCharges;
   }
 
-  // ⭐ ฟังก์ชันใหม่: คำนวณยอดรวมพร้อมใช้ payment settings
+  // ⭐ ฟังก์ชันใหม่: คำนวดยอดรวมพร้อมใช้ payment settings
   double _calculateGrandTotal() {
     final subtotal = _calculateSubtotal();
 
-    // ⭐ ถ้ามี payment settings ให้คำนวณค่าปรับและส่วนลดอัตโนมัติ
+    // ⭐ ถ้ามี payment settings ให้คำนวดค่าปรับและส่วนลดอัตโนมัติ
     if (_paymentSettings != null) {
-      // คำนวณค่าปรับ (ถ้าเปิดใช้งาน)
+      // คำนวดค่าปรับ (ถ้าเปิดใช้งาน)
       if (_paymentSettings!['enable_late_fee'] == true) {
         _lateFeeAmount = PaymentSettingsService.calculateLateFeeManual(
           settings: _paymentSettings!,
@@ -447,10 +484,10 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           paymentDate: DateTime.now(),
         );
         _lateFeeAmountController.text = _lateFeeAmount.toStringAsFixed(2);
-        debugPrint('💸 Calculated late fee: $_lateFeeAmount');
+        debugPrint('💸 คำนวดค่าปรับแล้ว: $_lateFeeAmount');
       }
 
-      // คำนวณส่วนลด (ถ้าเปิดใช้งาน)
+      // คำนวดส่วนลด (ถ้าเปิดใช้งาน)
       if (_paymentSettings!['enable_discount'] == true) {
         final discount = PaymentSettingsService.calculateEarlyDiscountManual(
           settings: _paymentSettings!,
@@ -459,11 +496,11 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           paymentDate: DateTime.now(),
         );
 
-        // ใช้ส่วนลดที่คำนวณได้ ถ้าไม่มีการกรอกส่วนลดเอง
+        // ใช้ส่วนลดที่คำนวดได้ ถ้าไม่มีการกรอกส่วนลดเอง
         if (_discountAmountController.text.isEmpty) {
           _discountAmount = discount;
           _discountAmountController.text = _discountAmount.toStringAsFixed(2);
-          debugPrint('🎉 Calculated discount: $_discountAmount');
+          debugPrint('🎉 คำนวดส่วนลดแล้ว: $_discountAmount');
         }
       }
     }
@@ -546,17 +583,35 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
         'meter_reading_id': _readingId,
         'invoice_month': _invoiceMonth,
         'invoice_year': _invoiceYear,
-        'invoice_date': DateTime.now().toIso8601String().split('T')[0],
+        'issue_date': DateTime.now()
+            .toIso8601String()
+            .split('T')[0], // ส่งไปเพื่อให้ service รู้
         'due_date': _dueDate.toIso8601String().split('T')[0],
+
+        // ✅ ค่าเช่า
         'room_rent': _rentalAmount,
+
+        // ✅ รายละเอียดค่าน้ำ
         'water_usage': _waterUsage,
         'water_rate': _waterRate,
         'water_cost': _waterCost,
+        'water_rate_id': _waterRateId,
+        // ✅ รายละเอียดค่าไฟ
         'electric_usage': _electricUsage,
         'electric_rate': _electricRate,
         'electric_cost': _electricCost,
+        'electric_rate_id': _electricRateId,
+
+        // ✅ ค่าใช้จ่ายอื่นๆ
         'other_expenses': _otherCharges,
-        'discount': _discountAmount,
+
+        // ✅ ส่วนลด
+        'discount_amount': _discountAmount,
+
+        // ✅ รายการค่าบริการคงที่
+        'fixed_rates': _selectedFixedRates,
+
+        // ✅ หมายเหตุ
         'notes': _notesController.text,
       };
 
@@ -568,6 +623,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           Navigator.pop(context, {'success': true});
         }
       } else {
+        print(result['message']);
         _showErrorSnackBar(result['message'] ?? 'เกิดข้อผิดพลาด');
       }
     } catch (e) {
@@ -624,7 +680,329 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     );
   }
 
-  // ... (ส่วนอื่นๆ ของโค้ดเหมือนเดิม - _buildProgressIndicator, _buildBasicInfoStep, etc.)
+  Widget _buildOtherChargesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'ค่าใช้จ่ายอื่นๆ (ค่าคงที่)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (_fixedRates.isNotEmpty)
+              ElevatedButton.icon(
+                onPressed: _showAddFixedRateDialog,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('เพิ่มค่าบริการ'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // แสดงรายการค่าคงที่ที่เลือก
+        if (_selectedFixedRates.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey[400], size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    _fixedRates.isEmpty
+                        ? 'ไม่มีค่าบริการคงที่ในระบบ'
+                        : 'ยังไม่มีการเลือกค่าบริการ',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Column(
+            children: [
+              ...List.generate(_selectedFixedRates.length, (index) {
+                final rate = _selectedFixedRates[index];
+                final fixedAmount = (rate['fixed_amount'] ?? 0.0).toDouble();
+                final additionalCharge =
+                    (rate['additional_charge'] ?? 0.0).toDouble();
+                final total = fixedAmount + additionalCharge;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        // ไอคอน
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            _getIconForRate(rate['rate_name']),
+                            color: Colors.purple,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+
+                        // ข้อมูล
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                rate['rate_name'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    'ค่าคงที่: ${fixedAmount.toStringAsFixed(2)} บาท',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  if (additionalCharge > 0) ...[
+                                    Text(
+                                      ' + ',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    Text(
+                                      '${additionalCharge.toStringAsFixed(2)} บาท',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ราคารวม
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${total.toStringAsFixed(2)} บาท',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Colors.purple,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // ปุ่มลบ
+                        IconButton(
+                          onPressed: () => _removeFixedRate(index),
+                          icon: const Icon(Icons.close, size: 20),
+                          color: Colors.red,
+                          tooltip: 'ลบ',
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+
+              // แสดงยอดรวม
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.purple[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.purple[200]!),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'รวมค่าใช้จ่ายอื่นๆ:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${_otherCharges.toStringAsFixed(2)} บาท',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  void _showAddFixedRateDialog() {
+    // กรองค่าบริการที่ยังไม่ได้เลือก
+    final availableRates = _fixedRates.where((rate) {
+      return !_selectedFixedRates.any(
+        (selected) => selected['rate_id'] == rate['rate_id'],
+      );
+    }).toList();
+
+    if (availableRates.isEmpty) {
+      _showErrorSnackBar('เพิ่มค่าบริการครบแล้ว');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.add_circle, color: AppTheme.primary),
+            const SizedBox(width: 8),
+            const Text('เลือกค่าบริการ'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: availableRates.length,
+            itemBuilder: (context, index) {
+              final rate = availableRates[index];
+              final fixedAmount = (rate['fixed_amount'] ?? 0.0).toDouble();
+              final additionalCharge =
+                  (rate['additional_charge'] ?? 0.0).toDouble();
+              final total = fixedAmount + additionalCharge;
+
+              return Card(
+                child: ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getIconForRate(rate['rate_name']),
+                      color: Colors.purple,
+                    ),
+                  ),
+                  title: Text(
+                    rate['rate_name'],
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text('ค่าคงที่: ${fixedAmount.toStringAsFixed(2)} บาท'),
+                      if (additionalCharge > 0)
+                        Text(
+                          'ค่าเพิ่มเติม: ${additionalCharge.toStringAsFixed(2)} บาท',
+                        ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.purple,
+                        ),
+                      ),
+                      const Text(
+                        'บาท',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _addFixedRate(rate);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getIconForRate(String rateName) {
+    final name = rateName.toLowerCase();
+    if (name.contains('ไฟ') || name.contains('electric')) {
+      return Icons.electric_bolt;
+    }
+    if (name.contains('น้ำ') || name.contains('water')) {
+      return Icons.water_drop;
+    }
+    if (name.contains('ส่วนกลาง') || name.contains('common')) {
+      return Icons.apartment;
+    }
+    if (name.contains('อินเทอร์เน็ต') ||
+        name.contains('เน็ต') ||
+        name.contains('internet') ||
+        name.contains('wifi')) {
+      return Icons.wifi;
+    }
+    if (name.contains('ขยะ') || name.contains('trash')) {
+      return Icons.delete_outline;
+    }
+    if (name.contains('ที่จอดรถ') || name.contains('parking')) {
+      return Icons.local_parking;
+    }
+    if (name.contains('รักษาความปลอดภัย') || name.contains('security')) {
+      return Icons.security;
+    }
+    return Icons.receipt_long;
+  }
 
   Widget _buildProgressIndicator() {
     return Container(
@@ -695,7 +1073,6 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     }
   }
 
-  // ⭐ แสดงข้อมูลค่าเช่าใน Basic Info Step
   Widget _buildBasicInfoStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -809,7 +1186,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                       // ⭐ อัปเดตค่าเช่า
                       _rentalAmount =
                           (contract['contract_price'] ?? 0.0).toDouble();
-                      debugPrint('💰 Updated rental amount: $_rentalAmount');
+                      debugPrint('💰 อัปเดตค่าเช่า: $_rentalAmount');
                     });
                   },
             validator: (value) => value == null ? 'กรุณาเลือกสัญญาเช่า' : null,
@@ -1182,7 +1559,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
           ),
           const SizedBox(height: 16),
 
-          // ⭐ แสดงค่าเช่า
+          // แสดงค่าเช่า
           _buildAmountCard(
             title: 'ค่าห้อง',
             amount: _rentalAmount,
@@ -1202,47 +1579,27 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
 
           const SizedBox(height: 12),
 
-          // ค่าใช้จ่ายอื่นๆ
-          TextFormField(
-            decoration: const InputDecoration(
-              labelText: 'ค่าใช้จ่ายอื่นๆ',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.payments),
-              suffixText: 'บาท',
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-            ],
-            onChanged: (value) {
-              setState(() {
-                _otherCharges = double.tryParse(value) ?? 0.0;
-              });
-            },
-          ),
+          // ⭐ ใช้ widget ใหม่สำหรับค่าใช้จ่ายอื่นๆ
+          _buildOtherChargesSection(),
 
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 16),
 
-          // ⭐ แสดงส่วนลดและค่าปรับที่คำนวณได้ (แบบ Read-only)
+          // แสดงส่วนลดและค่าปรับที่คำนวดได้ (แบบ Read-only)
           const Text(
             'ส่วนลดและค่าปรับ',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'ระบบจะคำนวณอัตโนมัติตามการตั้งค่าของสาขา',
+            'ระบบจะคำนวดอัตโนมัติตามการตั้งค่าของสาขา',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
 
-          // ⭐ แสดงส่วนลดที่คำนวณได้
           _buildDiscountDisplay(),
-
           const SizedBox(height: 16),
-
-          // ⭐ แสดงค่าปรับที่คำนวณได้
           _buildLateFeeDisplay(),
 
           const SizedBox(height: 24),
@@ -1262,7 +1619,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     );
   }
 
-  // ⭐ Widget แสดงส่วนลดที่คำนวณได้ (Read-only Display)
+  // ⭐ Widget แสดงส่วนลดที่คำนวดได้ (Read-only Display)
   Widget _buildDiscountDisplay() {
     final hasPaymentSettings = _paymentSettings != null;
     final isDiscountEnabled = hasPaymentSettings &&
@@ -1314,7 +1671,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
       );
     }
 
-    // คำนวณส่วนลดจาก Payment Settings
+    // คำนวดส่วนลดจาก Payment Settings
     final subtotal = _calculateSubtotal();
     final discountPercent = _paymentSettings!['early_payment_discount'] ?? 0;
     final earlyDays = _paymentSettings!['early_payment_days'] ?? 0;
@@ -1405,7 +1762,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     );
   }
 
-  // ⭐ Widget แสดงค่าปรับที่คำนวณได้ (Read-only Display)
+  // ⭐ Widget แสดงค่าปรับที่คำนวดได้ (Read-only Display)
   Widget _buildLateFeeDisplay() {
     final hasPaymentSettings = _paymentSettings != null;
     final isLateFeeEnabled = hasPaymentSettings &&
@@ -1458,7 +1815,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
       );
     }
 
-    // คำนวณค่าปรับจาก Payment Settings
+    // คำนวดค่าปรับจาก Payment Settings
     final subtotal = _calculateSubtotal();
     final lateFeeType = _paymentSettings!['late_fee_type'] ?? 'fixed';
     final lateFeeAmount = _paymentSettings!['late_fee_amount'] ?? 0;
@@ -1529,7 +1886,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
       );
     }
 
-    // แสดงค่าปรับที่คำนวณได้
+    // แสดงค่าปรับที่คำนวดได้
     String lateFeeTypeText = '';
     String calculationText = '';
 
@@ -1623,283 +1980,6 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
     );
   }
 
-  // ⭐ Widget แสดงสถานะ Payment Settings
-  Widget _buildPaymentSettingsStatus() {
-    if (_paymentSettings == null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.orange[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange[200]!, width: 2),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.orange[700], size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ไม่พบการตั้งค่าค่าปรับและส่วนลด',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange[900],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'สาขานี้ยังไม่ได้ตั้งค่าระบบคำนวณอัตโนมัติ คุณสามารถกรอกค่าปรับและส่วนลดด้วยตนเอง',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange[800],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final isActive = _paymentSettings!['is_active'] == true;
-    final hasLateFee = _paymentSettings!['enable_late_fee'] == true;
-    final hasDiscount = _paymentSettings!['enable_discount'] == true;
-
-    if (!isActive) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!, width: 2),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.toggle_off, color: Colors.grey[600], size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'การตั้งค่าถูกปิดใช้งาน',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'สาขานี้ปิดการใช้งานการคำนวณอัตโนมัติ คุณสามารถกรอกค่าปรับและส่วนลดด้วยตนเอง',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // แสดงสถานะเปิดใช้งาน พร้อมรายละเอียด
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green[200]!, width: 2),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green[700], size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'การตั้งค่าเปิดใช้งานอยู่',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[900],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'ระบบจะคำนวณค่าปรับและส่วนลดอัตโนมัติตามการตั้งค่าด้านล่าง',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.green[800],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-
-              // แสดงรายละเอียดการตั้งค่า
-              Row(
-                children: [
-                  // ส่วนลด
-                  Expanded(
-                    child: _buildSettingSummaryCard(
-                      icon: Icons.discount,
-                      iconColor: hasDiscount ? Colors.green : Colors.grey,
-                      title: 'ส่วนลด',
-                      isEnabled: hasDiscount,
-                      details: hasDiscount
-                          ? [
-                              '${_paymentSettings!['early_payment_discount']}% ของยอดรวม',
-                              'ชำระก่อน ${_paymentSettings!['early_payment_days']} วัน',
-                            ]
-                          : ['ปิดใช้งาน'],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // ค่าปรับ
-                  Expanded(
-                    child: _buildSettingSummaryCard(
-                      icon: Icons.warning_amber,
-                      iconColor: hasLateFee ? Colors.red : Colors.grey,
-                      title: 'ค่าปรับ',
-                      isEnabled: hasLateFee,
-                      details: hasLateFee
-                          ? [
-                              _getLateFeeTypeText(),
-                              'เริ่มคิดหลัง ${_paymentSettings!['late_fee_start_day']} วัน',
-                            ]
-                          : ['ปิดใช้งาน'],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Widget สำหรับแสดงสรุปการตั้งค่าแต่ละประเภท
-  Widget _buildSettingSummaryCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required bool isEnabled,
-    required List<String> details,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isEnabled ? iconColor.withOpacity(0.3) : Colors.grey[300]!,
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: iconColor, size: 20),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: isEnabled ? Colors.grey[800] : Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...details.map((detail) => Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  '• $detail',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isEnabled ? Colors.grey[700] : Colors.grey[500],
-                  ),
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-
-  // ฟังก์ชันแปลงประเภทค่าปรับเป็นข้อความ
-  String _getLateFeeTypeText() {
-    if (_paymentSettings == null) return '';
-
-    final type = _paymentSettings!['late_fee_type'];
-    final amount = _paymentSettings!['late_fee_amount'];
-
-    switch (type) {
-      case 'fixed':
-        return '${amount?.toStringAsFixed(0)} บาท คงที่';
-      case 'percentage':
-        return '$amount% ของยอดรวม';
-      case 'daily':
-        return '${amount?.toStringAsFixed(0)} บาท/วัน';
-      default:
-        return '';
-    }
-  }
-
-  // ⭐ ฟังก์ชันใหม่: Apply contract data และดึงค่าเช่า
-  // void _applyContractData() {
-  //   if (_contracts.isEmpty) return;
-
-  //   if (_selectedContractId == null) {
-  //     final activeContracts =
-  //         _contracts.where((c) => c['contract_status'] == 'active').toList();
-  //     final selectedContract =
-  //         activeContracts.isNotEmpty ? activeContracts.first : _contracts.first;
-
-  //     _selectedContractId = selectedContract['contract_id'];
-  //     _selectedTenantId = selectedContract['tenant_id'];
-
-  //     // ⭐ ดึงค่าเช่า
-  //     _rentalAmount = (selectedContract['contract_price'] ?? 0.0).toDouble();
-  //     debugPrint('🏠 Applied rental amount from contract: $_rentalAmount');
-  //   } else {
-  //     final contract = _contracts.firstWhere(
-  //       (c) => c['contract_id'] == _selectedContractId,
-  //       orElse: () => {},
-  //     );
-  //     if (contract.isNotEmpty) {
-  //       // ⭐ ดึงค่าเช่า
-  //       _rentalAmount = (contract['contract_price'] ?? 0.0).toDouble();
-  //       debugPrint('🏠 Applied rental amount from selected contract: $_rentalAmount');
-  //     }
-  //   }
-  // }
-
-  // ลบฟังก์ชันเดิมที่ไม่ใช้แล้ว: _buildDiscountSection(), _buildLateFeeSection()
-  // ลบฟังก์ชัน: _buildCalculationExample(), _getDiscountCalculationExample(), _getLateFeeCalculationExample()
-
   Widget _buildSummaryStep() {
     final subtotal = _calculateSubtotal();
     final grandTotal = _calculateGrandTotal();
@@ -1949,18 +2029,83 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
+
                   // ⭐ แสดงค่าเช่า
                   _buildSummaryRow(
                       'ค่าห้อง', '${_rentalAmount.toStringAsFixed(2)} บาท'),
+
+                  // ค่าน้ำ
                   _buildSummaryRow(
                       'ค่าน้ำ (${_waterUsage.toStringAsFixed(0)} หน่วย)',
                       '${_waterCost.toStringAsFixed(2)} บาท'),
+
+                  // ค่าไฟ
                   _buildSummaryRow(
                       'ค่าไฟ (${_electricUsage.toStringAsFixed(0)} หน่วย)',
                       '${_electricCost.toStringAsFixed(2)} บาท'),
-                  if (_otherCharges > 0)
-                    _buildSummaryRow('ค่าใช้จ่ายอื่นๆ',
-                        '${_otherCharges.toStringAsFixed(2)} บาท'),
+
+                  // ⭐ แสดงค่าใช้จ่ายอื่นๆแบบแยกรายการ
+                  if (_selectedFixedRates.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long,
+                            size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 6),
+                        Text(
+                          'ค่าใช้จ่ายอื่นๆ:',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(_selectedFixedRates.length, (index) {
+                      final rate = _selectedFixedRates[index];
+                      final fixedAmount =
+                          (rate['fixed_amount'] ?? 0.0).toDouble();
+                      final additionalCharge =
+                          (rate['additional_charge'] ?? 0.0).toDouble();
+                      final total = fixedAmount + additionalCharge;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 24, bottom: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _getIconForRate(rate['rate_name']),
+                              size: 14,
+                              color: Colors.purple[400],
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                rate['rate_name'],
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${total.toStringAsFixed(2)} บาท',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.purple[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+
                   const Divider(height: 24),
                   _buildSummaryRow(
                       'รวมย่อย', '${subtotal.toStringAsFixed(2)} บาท',
