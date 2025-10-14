@@ -64,11 +64,10 @@ class _IssuesListScreenState extends State<IssuesListScreen>
         return;
       }
 
-      await Future.wait([
-        _loadBranches(),
-        _loadIssues(),
-        _loadStatistics(),
-      ]);
+      // Load sequentially to ensure issues are ready before computing statistics
+      await _loadBranches();
+      await _loadIssues();
+      await _loadStatistics();
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -107,13 +106,40 @@ class _IssuesListScreenState extends State<IssuesListScreen>
 
   Future<void> _loadStatistics() async {
     try {
+      // For Admin without a specific branch filter, aggregate from loaded issues (managed branches only)
+      if (_currentUser?.userRole == UserRole.admin &&
+          (_selectedBranchId == null || _selectedBranchId!.isEmpty)) {
+        _statistics = _computeStatisticsFromIssues(_allIssues);
+        setState(() {});
+        return;
+      }
+
       _statistics = await IssueService.getIssueStatistics(
-        branchId: _selectedBranchId ?? _currentUser?.branchId,
+        branchId: _selectedBranchId,
       );
       setState(() {});
     } catch (e) {
       print('Error loading statistics: $e');
     }
+  }
+
+  Map<String, dynamic> _computeStatisticsFromIssues(
+      List<Map<String, dynamic>> issues) {
+    int total = issues.length;
+    int pending = issues.where((i) => i['issue_status'] == 'pending').length;
+    int inProgress =
+        issues.where((i) => i['issue_status'] == 'in_progress').length;
+    int resolved = issues.where((i) => i['issue_status'] == 'resolved').length;
+    int cancelled =
+        issues.where((i) => i['issue_status'] == 'cancelled').length;
+
+    return {
+      'total': total,
+      'pending': pending,
+      'in_progress': inProgress,
+      'resolved': resolved,
+      'cancelled': cancelled,
+    };
   }
 
   void _applyFilters() {

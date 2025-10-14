@@ -38,6 +38,7 @@ class _RoomListUIState extends State<RoomListUI> {
   String? _selectedBranchId;
   UserModel? _currentUser;
   bool _isAnonymous = false;
+  bool _canAddRoom = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -60,6 +61,7 @@ class _RoomListUIState extends State<RoomListUI> {
         _currentUser = user;
         _isAnonymous = user == null;
       });
+      await _refreshAddPermission();
     } catch (e) {
       setState(() {
         _currentUser = null;
@@ -164,6 +166,7 @@ class _RoomListUIState extends State<RoomListUI> {
     setState(() {
       _selectedBranchId = branchId;
     });
+    _refreshAddPermission();
     _loadRooms();
   }
 
@@ -668,8 +671,25 @@ class _RoomListUIState extends State<RoomListUI> {
       (_currentUser?.userRole == UserRole.superAdmin ||
           _currentUser?.userRole == UserRole.admin);
 
-  bool get _canAdd =>
-      !_isAnonymous && _currentUser?.userRole == UserRole.superAdmin;
+  Future<void> _refreshAddPermission() async {
+    if (!mounted) return;
+    bool allowed = false;
+    if (!_isAnonymous) {
+      if (_currentUser?.userRole == UserRole.superAdmin) {
+        allowed = true;
+      } else if (_currentUser?.userRole == UserRole.admin &&
+          _selectedBranchId != null &&
+          _selectedBranchId!.isNotEmpty) {
+        allowed = await RoomService.isUserManagerOfBranch(
+            _currentUser!.userId, _selectedBranchId!);
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _canAddRoom = allowed;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -681,7 +701,7 @@ class _RoomListUIState extends State<RoomListUI> {
         elevation: 0,
         actions: [
           // ปุ่มจัดการข้อมูลพื้นฐาน (แสดงเฉพาะ superadmin)
-          if (_canAdd)
+          if (!_isAnonymous && _currentUser?.userRole == UserRole.superAdmin)
             IconButton(
               icon: Icon(Icons.settings_outlined),
               onPressed: _showMasterDataMenu,
@@ -1120,7 +1140,7 @@ class _RoomListUIState extends State<RoomListUI> {
           ),
         ],
       ),
-      floatingActionButton: _canAdd
+      floatingActionButton: _canAddRoom
           ? FloatingActionButton(
               onPressed: () async {
                 final result = await Navigator.push(
@@ -1168,12 +1188,12 @@ class _RoomListUIState extends State<RoomListUI> {
           Text(
             _searchQuery.isNotEmpty
                 ? 'ลองเปลี่ยนคำค้นหา หรือกรองสถานะ'
-                : _canAdd
+                : _canAddRoom
                     ? 'เริ่มต้นโดยการเพิ่มห้องพักแรก'
                     : 'ไม่มีห้องพักในสาขานี้',
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
-          if (_searchQuery.isEmpty && _canAdd)
+          if (_searchQuery.isEmpty && _canAddRoom)
             Padding(
               padding: EdgeInsets.only(top: 24),
               child: ElevatedButton.icon(

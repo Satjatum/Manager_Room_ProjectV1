@@ -293,10 +293,22 @@ class _BranchListDetailState extends State<BranchListDetail>
     return isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
   }
 
-  bool get _canManage =>
-      !_isAnonymous &&
-      (_currentUser?.userRole == UserRole.superAdmin ||
-          _currentUser?.userRole == UserRole.admin);
+  bool get _canManage {
+    if (_isAnonymous) return false;
+    // SuperAdmin can manage all branches
+    if (_currentUser?.userRole == UserRole.superAdmin) return true;
+    // Admin can manage only branches they are assigned to (as branch manager)
+    if (_currentUser?.userRole == UserRole.admin) {
+      final uid = _currentUser!.userId;
+      return _branchManagers.any((m) {
+        final directId = m['user_id'];
+        final nested = m['users'] as Map<String, dynamic>?;
+        final nestedId = nested?['user_id'];
+        return directId == uid || nestedId == uid;
+      });
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {

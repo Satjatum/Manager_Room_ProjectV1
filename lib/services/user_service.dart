@@ -389,6 +389,81 @@ class UserService {
     }
   }
 
+  /// Permanently delete a user (SuperAdmin only)
+  static Future<Map<String, dynamic>> deleteUser(String userId) async {
+    try {
+      final currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'message': 'กรุณาเข้าสู่ระบบใหม่',
+        };
+      }
+
+      // Only superadmin can delete users permanently
+      if (currentUser.userRole != UserRole.superAdmin) {
+        return {
+          'success': false,
+          'message': 'ไม่มีสิทธิ์ในการลบผู้ใช้ถาวร',
+        };
+      }
+
+      // Cannot delete self
+      if (currentUser.userId == userId) {
+        return {
+          'success': false,
+          'message': 'ไม่สามารถลบบัญชีของตัวเองได้',
+        };
+      }
+
+      // Ensure target user exists and is not superadmin
+      final target = await _supabase
+          .from('users')
+          .select('user_id, role, user_name')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (target == null) {
+        return {
+          'success': false,
+          'message': 'ไม่พบผู้ใช้ที่ต้องการลบ',
+        };
+      }
+
+      if ((target['role'] as String).toLowerCase() == 'superadmin') {
+        return {
+          'success': false,
+          'message': 'ไม่สามารถลบผู้ใช้ระดับ SuperAdmin ได้',
+        };
+      }
+
+      await _supabase.from('users').delete().eq('user_id', userId);
+
+      return {
+        'success': true,
+        'message': 'ลบบัญชีผู้ใช้ "${target['user_name']}" ถาวรสำเร็จ',
+      };
+    } on PostgrestException catch (e) {
+      String message = 'เกิดข้อผิดพลาด: ${e.message}';
+
+      if (e.code == 'PGRST116') {
+        message = 'ไม่พบผู้ใช้ที่ต้องการลบ';
+      } else if (e.code == '23503') {
+        message = 'ไม่สามารถลบผู้ใช้ได้ เนื่องจากยังมีข้อมูลที่เกี่ยวข้อง';
+      }
+
+      return {
+        'success': false,
+        'message': message,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'เกิดข้อผิดพลาดในการลบผู้ใช้: $e',
+      };
+    }
+  }
+
   /// Search users by name or email
   static Future<List<Map<String, dynamic>>> searchUsers(
       String searchQuery) async {

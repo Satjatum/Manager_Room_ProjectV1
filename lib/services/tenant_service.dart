@@ -117,11 +117,26 @@ class TenantService {
         };
       }
 
-      // Check permissions
-      if (!currentUser.hasAnyPermission([
+      // Check permissions: allow superadmin/manageTenants OR admin who manages selected branch
+      bool allowed = currentUser.hasAnyPermission([
         DetailedPermission.all,
         DetailedPermission.manageTenants,
-      ])) {
+      ]);
+
+      if (!allowed && currentUser.userRole == UserRole.admin) {
+        final String? branchId = tenantData['branch_id']?.toString();
+        if (branchId != null && branchId.isNotEmpty) {
+          final managerRow = await _supabase
+              .from('branch_managers')
+              .select('id')
+              .eq('branch_id', branchId)
+              .eq('user_id', currentUser.userId)
+              .maybeSingle();
+          allowed = managerRow != null;
+        }
+      }
+
+      if (!allowed) {
         return {
           'success': false,
           'message': 'ไม่มีสิทธิ์ในการสร้างผู้เช่าใหม่',

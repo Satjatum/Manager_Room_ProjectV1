@@ -601,7 +601,7 @@ class _TenantAddUIState extends State<TenantAddUI>
       return;
     }
 
-    // Validate all tabs
+    // Validate all tabs first to ensure required fields (including branch) are selected
     for (int i = 0; i <= 2; i++) {
       setState(() => _currentTabIndex = i);
       _tabController.animateTo(i);
@@ -611,6 +611,24 @@ class _TenantAddUIState extends State<TenantAddUI>
     }
 
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Permission pre-check: SuperAdmin/manageTenants OR Admin who manages selected branch
+    bool allowed = _currentUser!.hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageTenants,
+    ]);
+
+    if (!allowed && _currentUser!.userRole == UserRole.admin) {
+      if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+        allowed = await RoomService.isUserManagerOfBranch(
+            _currentUser!.userId, _selectedBranchId!);
+      }
+    }
+
+    if (!allowed) {
+      _showErrorSnackBar('คุณไม่มีสิทธิ์เพิ่มผู้เช่าในสาขานี้');
       return;
     }
 
@@ -644,12 +662,18 @@ class _TenantAddUIState extends State<TenantAddUI>
             _selectedImageName ?? 'tenant_profile.jpg',
             'tenant-images',
             folder: 'profiles',
+            prefix: 'tenant',
+            context:
+                'profile_${_currentUser!.userId}_${_selectedBranchId ?? 'global'}',
           );
         } else if (!kIsWeb && _selectedImage != null) {
           uploadResult = await ImageService.uploadImage(
             _selectedImage!,
             'tenant-images',
             folder: 'profiles',
+            prefix: 'tenant',
+            context:
+                'profile_${_currentUser!.userId}_${_selectedBranchId ?? 'global'}',
           );
         }
 

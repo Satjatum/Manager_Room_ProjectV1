@@ -947,8 +947,13 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       );
     }
 
-    // ปุ่มออกบิล (สำหรับสถานะ confirmed และยังไม่ได้ออกบิล)
-    if (status == 'confirmed' && invoiceId == null) {
+    // ปุ่มออกบิล (สำหรับสถานะ confirmed และยังไม่ได้ออกบิล และไม่ใช่ค่าเริ่มต้น/INIT)
+    final isInitial = reading['is_initial_reading'] == true;
+    final isInitCode = (readingNumber?.toString() ?? '').startsWith('INIT');
+    if (status == 'confirmed' &&
+        invoiceId == null &&
+        !isInitial &&
+        !isInitCode) {
       menuItems.add(
         PopupMenuItem<String>(
           value: 'create_invoice',
@@ -1134,7 +1139,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     try {
       final offset = isLoadMore ? _meterReadings.length : 0;
 
-      final readings = await MeterReadingService.getAllMeterReadings(
+      final readings = await MeterReadingService.getMeterReadingsByUser(
         offset: offset,
         limit: _pageSize,
         searchQuery:
@@ -1236,6 +1241,14 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
   // โหลดสถิติ
   Future<void> _loadStats() async {
     try {
+      // Admin ไม่เลือกสาขา → คำนวณจากรายการที่โหลดไว้แล้ว (ซึ่งถูกจำกัดสิทธิ์)
+      if (_currentUser?.userRole == UserRole.admin &&
+          (_selectedBranchId == null || _selectedBranchId!.isEmpty)) {
+        _stats = _computeStatsFromReadings(_meterReadings);
+        setState(() {});
+        return;
+      }
+
       final stats = await MeterReadingService.getMeterReadingStats(
         branchId: _selectedBranchId,
         month: _selectedMonth,
@@ -1245,6 +1258,33 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     } catch (e) {
       debugPrint('Error loading stats: $e');
     }
+  }
+
+  Map<String, dynamic> _computeStatsFromReadings(
+      List<Map<String, dynamic>> readings) {
+    int total = readings.length;
+    int initial = readings.where((r) => r['is_initial_reading'] == true).length;
+    int draft = readings
+        .where((r) =>
+            r['is_initial_reading'] != true && r['reading_status'] == 'draft')
+        .length;
+    int confirmed = readings
+        .where((r) =>
+            r['is_initial_reading'] != true &&
+            r['reading_status'] == 'confirmed')
+        .length;
+    int billed = readings.where((r) => r['reading_status'] == 'billed').length;
+    int cancelled =
+        readings.where((r) => r['reading_status'] == 'cancelled').length;
+
+    return {
+      'total': total,
+      'initial': initial,
+      'draft': draft,
+      'confirmed': confirmed,
+      'billed': billed,
+      'cancelled': cancelled,
+    };
   }
 
   // รีเฟรชข้อมูล

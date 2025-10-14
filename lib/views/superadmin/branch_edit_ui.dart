@@ -55,6 +55,18 @@ class _BranchEditPageState extends State<BranchEditPage>
   UserModel? _currentUser;
   Map<String, dynamic>? _originalBranchData;
 
+  bool get _isAdminBranchManager {
+    if (_currentUser?.userRole != UserRole.admin) return false;
+    if (_currentManagers.isEmpty) return false;
+    final uid = _currentUser!.userId;
+    return _currentManagers.any((m) {
+      final directId = m['user_id'];
+      final nested = m['users'] as Map<String, dynamic>?;
+      final nestedId = nested?['user_id'];
+      return directId == uid || nestedId == uid;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -541,12 +553,14 @@ class _BranchEditPageState extends State<BranchEditPage>
       return;
     }
 
-    // Check permissions
-    if (!_currentUser!.hasAnyPermission([
+    // Check permissions: allow superadmin/manageBranches OR admin who manages this branch
+    final allowedUI = _currentUser!.hasAnyPermission([
           DetailedPermission.all,
           DetailedPermission.manageBranches,
-        ]) &&
-        _currentUser!.userRole != UserRole.admin) {
+        ]) ||
+        _isAdminBranchManager;
+
+    if (!allowedUI) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('คุณไม่มีสิทธิ์ในการแก้ไขสาขา'),
@@ -765,11 +779,14 @@ class _BranchEditPageState extends State<BranchEditPage>
       );
     }
 
-    if (_currentUser == null ||
-        !_currentUser!.hasAnyPermission([
-          DetailedPermission.all,
-          DetailedPermission.manageBranches,
-        ])) {
+    final hasEditAccess = _currentUser != null &&
+        (_currentUser!.hasAnyPermission([
+              DetailedPermission.all,
+              DetailedPermission.manageBranches,
+            ]) ||
+            _isAdminBranchManager);
+
+    if (!hasEditAccess) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('แก้ไขสาขา'),
@@ -797,7 +814,7 @@ class _BranchEditPageState extends State<BranchEditPage>
               Text(
                 _currentUser == null
                     ? 'คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถแก้ไขสาขาได้'
-                    : 'เฉพาะ SuperAdmin และ Admin เท่านั้นที่สามารถแก้ไขสาขาได้',
+                    : 'เฉพาะ SuperAdmin หรือ Admin ที่เป็นผู้จัดการสาขานี้เท่านั้นที่สามารถแก้ไขสาขาได้',
                 style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                 textAlign: TextAlign.center,
               ),

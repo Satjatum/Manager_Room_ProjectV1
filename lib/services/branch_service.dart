@@ -266,11 +266,25 @@ class BranchService {
         };
       }
 
-      // Check permissions
-      if (!currentUser.hasAnyPermission([
-        DetailedPermission.all,
-        DetailedPermission.manageBranches,
-      ])) {
+      // Check permissions: allow superadmin/manageBranches OR admin who manages this branch
+      bool isManager = false;
+      if (currentUser.userRole == UserRole.admin) {
+        final managerRow = await _supabase
+            .from('branch_managers')
+            .select('id')
+            .eq('branch_id', branchId)
+            .eq('user_id', currentUser.userId)
+            .maybeSingle();
+        isManager = managerRow != null;
+      }
+
+      final allowed = currentUser.hasAnyPermission([
+            DetailedPermission.all,
+            DetailedPermission.manageBranches,
+          ]) ||
+          (currentUser.userRole == UserRole.admin && isManager);
+
+      if (!allowed) {
         return {
           'success': false,
           'message': 'ไม่มีสิทธิ์ในการแก้ไขสาขา',

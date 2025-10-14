@@ -111,6 +111,45 @@ class _UserManagementUiState extends State<UserManagementUi> {
     }
   }
 
+  Future<void> _deleteUser(String userId, String userName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยืนยันการลบถาวร'),
+        content: Text(
+            'คุณต้องการลบบัญชีผู้ใช้ "$userName" ถาวรหรือไม่?\n\nคำเตือน: การลบนี้ไม่สามารถย้อนกลับได้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('ลบถาวร', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final result = await UserService.deleteUser(userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: result['success'] ? Colors.green : Colors.red,
+          ),
+        );
+
+        if (result['success']) {
+          _loadUsers();
+        }
+      }
+    }
+  }
+
   UserRole _parseRole(String roleStr) {
     switch (roleStr.toLowerCase()) {
       case 'superadmin':
@@ -271,6 +310,8 @@ class _UserManagementUiState extends State<UserManagementUi> {
               _showEditUserDialog(user);
             } else if (value == 'deactivate') {
               _deactivateUser(user['user_id'], user['user_name']);
+            } else if (value == 'delete') {
+              _deleteUser(user['user_id'], user['user_name']);
             }
           },
           itemBuilder: (context) => [
@@ -295,6 +336,16 @@ class _UserManagementUiState extends State<UserManagementUi> {
                   ],
                 ),
               ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever, size: 20, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('ลบถาวร', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -358,12 +409,29 @@ class _AddUserDialogState extends State<AddUserDialog> {
 
     setState(() => _isLoading = true);
 
-    final result = await UserService.createUser({
+    // Default permissions for admin role
+    final List<String> defaultAdminPermissions = [
+      'manage_rooms',
+      'manage_tenants',
+      'manage_contracts',
+      'view_reports',
+      'manage_issues',
+      'manage_branches',
+      'manage_users',
+      'manage_meter_readings',
+      'manage_utility_rates',
+      'manage_invoices',
+    ];
+
+    final payload = {
       'user_name': _userNameController.text.trim(),
       'user_email': _emailController.text.trim(),
       'user_pass': _passwordController.text,
       'role': _selectedRole,
-    });
+      if (_selectedRole == 'admin') 'permissions': defaultAdminPermissions,
+    };
+
+    final result = await UserService.createUser(payload);
 
     if (mounted) {
       setState(() => _isLoading = false);
