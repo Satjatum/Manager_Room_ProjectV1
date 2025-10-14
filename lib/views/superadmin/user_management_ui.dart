@@ -358,12 +358,29 @@ class _AddUserDialogState extends State<AddUserDialog> {
 
     setState(() => _isLoading = true);
 
-    final result = await UserService.createUser({
+    // Default permissions for admin role
+    final List<String> defaultAdminPermissions = [
+      'manage_rooms',
+      'manage_tenants',
+      'manage_contracts',
+      'view_reports',
+      'manage_issues',
+      'manage_branches',
+      'manage_users',
+      'manage_meter_readings',
+      'manage_utility_rates',
+      'manage_invoices',
+    ];
+
+    final payload = {
       'user_name': _userNameController.text.trim(),
       'user_email': _emailController.text.trim(),
       'user_pass': _passwordController.text,
       'role': _selectedRole,
-    });
+      if (_selectedRole == 'admin') 'permissions': defaultAdminPermissions,
+    };
+
+    final result = await UserService.createUser(payload);
 
     if (mounted) {
       setState(() => _isLoading = false);
