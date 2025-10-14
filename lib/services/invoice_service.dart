@@ -281,6 +281,22 @@ class InvoiceService {
 
       final invoiceId = result['invoice_id'];
 
+      // ================================
+      // Link invoice back to meter reading and mark as billed (if provided)
+      // ================================
+      final readingId = invoiceData["meter_reading_id"];
+      if (readingId != null && readingId.toString().isNotEmpty) {
+        try {
+          await _supabase.from('meter_readings').update({
+            'reading_status': 'billed',
+            'invoice_id': invoiceId,
+          }).eq('reading_id', readingId);
+        } catch (e) {
+          // Non-fatal: invoice already created; log and continue
+          // print('Failed to link invoice to meter reading: $e');
+        }
+      }
+
       // ✅ สร้างรายละเอียดค่าน้ำใน invoice_utilities
       if (waterCost > 0) {
         await _supabase.from('invoice_utilities').insert({
