@@ -89,12 +89,33 @@ class IssueService {
         return [];
       }
 
-      // SuperAdmin and Admin with manage_issues permission can see all issues
-      if (currentUser.hasAnyPermission([
-        DetailedPermission.all,
-        DetailedPermission.manageIssues,
-      ])) {
+      // SuperAdmin can see all issues across all branches
+      if (currentUser.userRole == UserRole.superAdmin) {
         return getAllIssues(branchId: branchId, issueStatus: issueStatus);
+      }
+
+      // Admin: only see issues in branches they manage (from branch_managers)
+      if (currentUser.userRole == UserRole.admin) {
+        final managedBranchIds = await _getManagedBranchIds(currentUser.userId);
+
+        if (managedBranchIds.isEmpty) {
+          return [];
+        }
+
+        // If a specific branch is requested, ensure it's managed by the admin
+        if (branchId != null && branchId.isNotEmpty) {
+          if (!managedBranchIds.contains(branchId)) {
+            return [];
+          }
+          // Return issues only for that managed branch
+          return getAllIssues(branchId: branchId, issueStatus: issueStatus);
+        }
+
+        // Otherwise, fetch all and filter to managed branches in-memory
+        final issues = await getAllIssues(issueStatus: issueStatus);
+        return issues
+            .where((i) => managedBranchIds.contains(i['branch_id']))
+            .toList();
       }
 
       // Tenant can only see their own issues
@@ -130,7 +151,7 @@ class IssueService {
         }).toList();
       }
 
-      // Other users with view permission can see issues in their branch
+      // Other users with view permission can see issues in their assigned branch
       if (currentUser.branchId != null) {
         return getAllIssues(
           branchId: currentUser.branchId,
@@ -141,6 +162,23 @@ class IssueService {
       return [];
     } catch (e) {
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลปัญหา: $e');
+    }
+  }
+
+  /// Get list of branch IDs that the user manages
+  static Future<List<String>> _getManagedBranchIds(String userId) async {
+    try {
+      final rows = await _supabase
+          .from('branch_managers')
+          .select('branch_id')
+          .eq('user_id', userId);
+      return rows
+          .map<String>((r) => r['branch_id']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toList();
+    } catch (e) {
+      return [];
     }
   }
 
