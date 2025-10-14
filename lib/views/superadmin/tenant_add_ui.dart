@@ -601,6 +601,19 @@ class _TenantAddUIState extends State<TenantAddUI>
       return;
     }
 
+    // Validate all tabs first to ensure required fields (including branch) are selected
+    for (int i = 0; i <= 2; i++) {
+      setState(() => _currentTabIndex = i);
+      _tabController.animateTo(i);
+      if (!_validateCurrentTab()) {
+        return;
+      }
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     // Permission pre-check: SuperAdmin/manageTenants OR Admin who manages selected branch
     bool allowed = _currentUser!.hasAnyPermission([
       DetailedPermission.all,
@@ -616,19 +629,6 @@ class _TenantAddUIState extends State<TenantAddUI>
 
     if (!allowed) {
       _showErrorSnackBar('คุณไม่มีสิทธิ์เพิ่มผู้เช่าในสาขานี้');
-      return;
-    }
-
-    // Validate all tabs
-    for (int i = 0; i <= 2; i++) {
-      setState(() => _currentTabIndex = i);
-      _tabController.animateTo(i);
-      if (!_validateCurrentTab()) {
-        return;
-      }
-    }
-
-    if (!_formKey.currentState!.validate()) {
       return;
     }
 
