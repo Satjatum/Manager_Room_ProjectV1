@@ -155,11 +155,21 @@ class RoomService {
         };
       }
 
-      // Check permissions - only superadmin and admin can create rooms
-      if (!currentUser.hasAnyPermission([
+      // Check permissions: allow superadmin/manageRooms OR admin who manages selected branch
+      bool allowed = currentUser.hasAnyPermission([
         DetailedPermission.all,
         DetailedPermission.manageRooms,
-      ])) {
+      ]);
+
+      // If not globally allowed, check admin branch manager for the target branch
+      if (!allowed && currentUser.userRole == UserRole.admin) {
+        final String? branchId = roomData['branch_id']?.toString();
+        if (branchId != null && branchId.isNotEmpty) {
+          allowed = await isUserManagerOfBranch(currentUser.userId, branchId);
+        }
+      }
+
+      if (!allowed) {
         return {
           'success': false,
           'message': 'ไม่มีสิทธิ์ในการสร้างห้องพักใหม่',
@@ -581,6 +591,22 @@ class RoomService {
       return List<Map<String, dynamic>>.from(result);
     } catch (e) {
       throw Exception('เกิดข้อผิดพลาดในการโหลดข้อมูลสาขา: $e');
+    }
+  }
+
+  /// Check if a user is a manager of the given branch
+  static Future<bool> isUserManagerOfBranch(
+      String userId, String branchId) async {
+    try {
+      final row = await _supabase
+          .from('branch_managers')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('branch_id', branchId)
+          .maybeSingle();
+      return row != null;
+    } catch (e) {
+      return false;
     }
   }
 
