@@ -601,6 +601,24 @@ class _TenantAddUIState extends State<TenantAddUI>
       return;
     }
 
+    // Permission pre-check: SuperAdmin/manageTenants OR Admin who manages selected branch
+    bool allowed = _currentUser!.hasAnyPermission([
+      DetailedPermission.all,
+      DetailedPermission.manageTenants,
+    ]);
+
+    if (!allowed && _currentUser!.userRole == UserRole.admin) {
+      if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+        allowed = await RoomService.isUserManagerOfBranch(
+            _currentUser!.userId, _selectedBranchId!);
+      }
+    }
+
+    if (!allowed) {
+      _showErrorSnackBar('คุณไม่มีสิทธิ์เพิ่มผู้เช่าในสาขานี้');
+      return;
+    }
+
     // Validate all tabs
     for (int i = 0; i <= 2; i++) {
       setState(() => _currentTabIndex = i);
