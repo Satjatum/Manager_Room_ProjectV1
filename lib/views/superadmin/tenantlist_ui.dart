@@ -775,6 +775,9 @@ class _TenantListUIState extends State<TenantListUI> {
     final tenantId = tenant['tenant_id'];
     final branchName = tenant['branch_name'] ?? 'ไม่ระบุสาขา';
     final hasBranch = tenant['branch_id'] != null;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final compact = screenWidth < 380;
+    final profileSize = compact ? 48.0 : 56.0;
 
     return Card(
       elevation: 2,
@@ -800,7 +803,7 @@ class _TenantListUIState extends State<TenantListUI> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header Row - Profile + Name + Status
+              // Header Row - Profile + Name + Status + Actions
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -809,7 +812,7 @@ class _TenantListUIState extends State<TenantListUI> {
                     gender: gender,
                     tenantName: tenant['tenant_fullname'] ?? '',
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: compact ? 10 : 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -846,7 +849,10 @@ class _TenantListUIState extends State<TenantListUI> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: compact ? 4 : 8),
+                  // Actions menu
+                  _buildActionsMenu(tenant, canManage, isActive),
+                  SizedBox(width: compact ? 6 : 8),
                   // Status Badge
                   Container(
                     padding:
@@ -974,117 +980,109 @@ class _TenantListUIState extends State<TenantListUI> {
                 ],
               ),
 
-              // Action Buttons
-              if (canManage) ...[
-                const Divider(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  TenantDetailUI(tenantId: tenantId),
-                            ),
-                          );
-                          if (result == true && mounted) {
-                            await _loadTenants();
-                          }
-                        },
-                        icon: const Icon(Icons.visibility, size: 16),
-                        label: const Text('ดู', style: TextStyle(fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.primary,
-                          side: BorderSide(color: AppTheme.primary),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TenantEditUI(
-                                tenantId: tenantId,
-                                tenantData: tenant,
-                              ),
-                            ),
-                          ).then((result) {
-                            if (result == true && mounted) {
-                              _loadTenants();
-                            }
-                          });
-                        },
-                        icon: const Icon(Icons.edit, size: 16),
-                        label:
-                            const Text('แก้ไข', style: TextStyle(fontSize: 13)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'toggle') {
-                          _toggleTenantStatus(
-                            tenant['tenant_id'],
-                            tenant['tenant_fullname'] ?? '',
-                            isActive,
-                          );
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'toggle',
-                          child: Row(
-                            children: [
-                              Icon(
-                                isActive
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                                size: 16,
-                                color: isActive ? Colors.orange : Colors.green,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'),
-                            ],
-                          ),
-                        ),
-                      ],
-                      icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ] else if (_isAnonymous)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showLoginPrompt('ดูรายละเอียด'),
-                      icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('ดูรายละเอียด',
-                          style: TextStyle(fontSize: 13)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: BorderSide(color: AppTheme.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                ),
+              // Action Buttons moved to PopupMenu (header)
+              // Keep card clean – no inline buttons below
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildActionsMenu(
+      Map<String, dynamic> tenant, bool canManage, bool isActive) {
+    final tenantId = tenant['tenant_id'];
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+      tooltip: 'การทำงาน',
+      onSelected: (value) async {
+        switch (value) {
+          case 'view':
+            if (_isAnonymous) {
+              _showLoginPrompt('ดูรายละเอียด');
+              return;
+            }
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TenantDetailUI(tenantId: tenantId),
+              ),
+            );
+            if (result == true && mounted) {
+              await _loadTenants();
+            }
+            break;
+          case 'edit':
+            if (_isAnonymous) {
+              _showLoginPrompt('แก้ไข');
+              return;
+            }
+            if (!canManage) return;
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TenantEditUI(
+                  tenantId: tenantId,
+                  tenantData: tenant,
+                ),
+              ),
+            );
+            if (result == true && mounted) {
+              await _loadTenants();
+            }
+            break;
+          case 'toggle':
+            if (_isAnonymous) {
+              _showLoginPrompt(isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน');
+              return;
+            }
+            if (!canManage) return;
+            _toggleTenantStatus(
+              tenant['tenant_id'],
+              tenant['tenant_fullname'] ?? '',
+              isActive,
+            );
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'view',
+          child: Row(
+            children: const [
+              Icon(Icons.visibility, size: 18),
+              SizedBox(width: 8),
+              Text('ดูรายละเอียด'),
+            ],
+          ),
+        ),
+        if (canManage)
+          PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: const [
+                Icon(Icons.edit, size: 18),
+                SizedBox(width: 8),
+                Text('แก้ไข'),
+              ],
+            ),
+          ),
+        if (canManage)
+          PopupMenuItem(
+            value: 'toggle',
+            child: Row(
+              children: [
+                Icon(
+                  isActive ? Icons.visibility_off : Icons.visibility,
+                  size: 18,
+                  color: isActive ? Colors.orange : Colors.green,
+                ),
+                const SizedBox(width: 8),
+                Text(isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -1093,9 +1091,11 @@ class _TenantListUIState extends State<TenantListUI> {
     required String? gender,
     required String tenantName,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final size = screenWidth < 380 ? 48.0 : 56.0;
     return Container(
-      width: 56,
-      height: 56,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: AppTheme.primary.withOpacity(0.1),
