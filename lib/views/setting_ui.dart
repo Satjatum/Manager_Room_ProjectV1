@@ -406,7 +406,12 @@ class _SettingUiState extends State<SettingUi> {
                 ),
               ),
             const SizedBox(height: 20),
-            if (currentUser!.userRole == UserRole.superAdmin)
+            if (currentUser!.userRole == UserRole.superAdmin ||
+                currentUser!.canManageUtilityRates() ||
+                currentUser!.hasAnyPermission([
+                  DetailedPermission.managePayments,
+                  DetailedPermission.manageInvoices,
+                ]))
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -432,56 +437,69 @@ class _SettingUiState extends State<SettingUi> {
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
-                    // Utility Rates Settings
-                    ListTile(
-                      leading: Icon(Icons.admin_panel_settings,
-                          color: Colors.purple[600]),
-                      title: const Text('จัดการผู้ใช้งาน'),
-                      subtitle: const Text('เพิ่ม แก้ไข และจัดการผู้ใช้ระบบ'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const UserManagementUi(),
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.bolt, color: Colors.amber),
-                      title: const Text('ตั้งค่าอัตราค่าบริการ'),
-                      subtitle: const Text('ค่าไฟฟ้า ค่าน้ำ ค่าส่วนกลาง'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const UtilityRatesManagementUi(),
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1),
-                    // Payment Settings (Late Fee & Discount)
-                    ListTile(
-                      leading: const Icon(Icons.account_balance_wallet,
-                          color: Colors.green),
-                      title: const Text('ตั้งค่าค่าปรับและส่วนลด'),
-                      subtitle: const Text('ค่าปรับชำระล่าช้า ส่วนลดชำระก่อน'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PaymentSettingsUi(),
-                          ),
-                        );
-                      },
-                    ),
+                    // User Management (SuperAdmin only)
+                    if (currentUser!.userRole == UserRole.superAdmin) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: Icon(Icons.admin_panel_settings,
+                            color: Colors.purple[600]),
+                        title: const Text('จัดการผู้ใช้งาน'),
+                        subtitle: const Text('เพิ่ม แก้ไข และจัดการผู้ใช้ระบบ'),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserManagementUi(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    // Utility Rates (SuperAdmin or Admin with permission)
+                    if (currentUser!.userRole == UserRole.superAdmin ||
+                        currentUser!.canManageUtilityRates()) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.bolt, color: Colors.amber),
+                        title: const Text('ตั้งค่าอัตราค่าบริการ'),
+                        subtitle: const Text('ค่าไฟฟ้า ค่าน้ำ ค่าส่วนกลาง'),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const UtilityRatesManagementUi(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    // Payment Settings (SuperAdmin or Admin with manage payments/invoices)
+                    if (currentUser!.userRole == UserRole.superAdmin ||
+                        currentUser!.hasAnyPermission([
+                          DetailedPermission.managePayments,
+                          DetailedPermission.manageInvoices,
+                        ])) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.account_balance_wallet,
+                            color: Colors.green),
+                        title: const Text('ตั้งค่าค่าปรับและส่วนลด'),
+                        subtitle:
+                            const Text('ค่าปรับชำระล่าช้า ส่วนลดชำระก่อน'),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PaymentSettingsUi(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
