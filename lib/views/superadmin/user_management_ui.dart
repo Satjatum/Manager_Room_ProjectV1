@@ -126,8 +126,7 @@ class _UserManagementUiState extends State<UserManagementUi> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child:
-                const Text('ลบถาวร', style: TextStyle(color: Colors.white)),
+            child: const Text('ลบถาวร', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

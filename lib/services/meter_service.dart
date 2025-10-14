@@ -11,6 +11,118 @@ class MeterReadingService {
   // READ OPERATIONS
   // ============================================
 
+  /// ดึงรายการบันทึกค่ามิเตอร์ตามสิทธิ์ผู้ใช้
+  static Future<List<Map<String, dynamic>>> getMeterReadingsByUser({
+    int offset = 0,
+    int limit = 100,
+    String? searchQuery,
+    String? branchId,
+    String? roomId,
+    String? tenantId,
+    String? status,
+    int? readingMonth,
+    int? readingYear,
+    bool? includeInitial,
+    String orderBy = 'created_at',
+    bool ascending = false,
+  }) async {
+    final currentUser = await AuthService.getCurrentUser();
+    if (currentUser == null) return [];
+
+    // SuperAdmin เห็นทุกสาขา
+    if (currentUser.userRole == UserRole.superAdmin) {
+      return getAllMeterReadings(
+        offset: offset,
+        limit: limit,
+        searchQuery: searchQuery,
+        branchId: branchId,
+        roomId: roomId,
+        tenantId: tenantId,
+        status: status,
+        readingMonth: readingMonth,
+        readingYear: readingYear,
+        includeInitial: includeInitial,
+        orderBy: orderBy,
+        ascending: ascending,
+      );
+    }
+
+    // Admin: จำกัดเฉพาะสาขาที่ตนดูแล
+    if (currentUser.userRole == UserRole.admin) {
+      // ดึงสาขาที่ดูแลจาก branch_managers
+      final managedRows = await _supabase
+          .from('branch_managers')
+          .select('branch_id')
+          .eq('user_id', currentUser.userId);
+      final managedIds = List<Map<String, dynamic>>.from(managedRows)
+          .map((r) => r['branch_id'])
+          .where((id) => id != null)
+          .map<String>((id) => id.toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      if (managedIds.isEmpty) return [];
+
+      // ถ้าเลือกสาขามาและไม่ใช่สาขาที่ดูแล → ไม่คืนข้อมูล
+      if (branchId != null &&
+          branchId.isNotEmpty &&
+          !managedIds.contains(branchId)) {
+        return [];
+      }
+
+      // หากระบุ branchId ที่อยู่ในสิทธิ์ก็ให้ส่งต่อ filter นั้น
+      if (branchId != null && branchId.isNotEmpty) {
+        return getAllMeterReadings(
+          offset: offset,
+          limit: limit,
+          searchQuery: searchQuery,
+          branchId: branchId,
+          roomId: roomId,
+          tenantId: tenantId,
+          status: status,
+          readingMonth: readingMonth,
+          readingYear: readingYear,
+          includeInitial: includeInitial,
+          orderBy: orderBy,
+          ascending: ascending,
+        );
+      }
+
+      // ไม่ได้ระบุสาขา: โหลดทั้งหมดแล้วกรองด้วย managedIds ในหน่วยความจำ
+      final all = await getAllMeterReadings(
+        offset: offset,
+        limit: limit,
+        searchQuery: searchQuery,
+        branchId: null,
+        roomId: roomId,
+        tenantId: tenantId,
+        status: status,
+        readingMonth: readingMonth,
+        readingYear: readingYear,
+        includeInitial: includeInitial,
+        orderBy: orderBy,
+        ascending: ascending,
+      );
+      return all.where((r) => managedIds.contains(r['branch_id'])).toList();
+    }
+
+    // บทบาทอื่นๆ ให้เห็นตาม branchId ที่ระบุเท่านั้น (ถ้ามี)
+    return getAllMeterReadings(
+      offset: offset,
+      limit: limit,
+      searchQuery: searchQuery,
+      branchId: branchId ?? currentUser.branchId,
+      roomId: roomId,
+      tenantId: tenantId,
+      status: status,
+      readingMonth: readingMonth,
+      readingYear: readingYear,
+      includeInitial: includeInitial,
+      orderBy: orderBy,
+      ascending: ascending,
+    );
+  }
+
   /// ดึงรายการบันทึกค่ามิเตอร์ทั้งหมด
   static Future<List<Map<String, dynamic>>> getAllMeterReadings({
     int offset = 0,

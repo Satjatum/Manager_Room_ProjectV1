@@ -126,12 +126,10 @@ class _IssuesListScreenState extends State<IssuesListScreen>
   Map<String, dynamic> _computeStatisticsFromIssues(
       List<Map<String, dynamic>> issues) {
     int total = issues.length;
-    int pending =
-        issues.where((i) => i['issue_status'] == 'pending').length;
+    int pending = issues.where((i) => i['issue_status'] == 'pending').length;
     int inProgress =
         issues.where((i) => i['issue_status'] == 'in_progress').length;
-    int resolved =
-        issues.where((i) => i['issue_status'] == 'resolved').length;
+    int resolved = issues.where((i) => i['issue_status'] == 'resolved').length;
     int cancelled =
         issues.where((i) => i['issue_status'] == 'cancelled').length;
 
