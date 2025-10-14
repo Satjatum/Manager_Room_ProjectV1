@@ -848,7 +848,11 @@ class _BranchlistUiState extends State<BranchlistUi> {
           ),
           SizedBox(height: 16),
           Text(
-            _searchQuery.isNotEmpty ? 'ไม่พบสาขาที่ค้นหา' : 'ยังไม่มีสาขา',
+            _searchQuery.isNotEmpty
+                ? 'ไม่พบสาขาที่ค้นหา'
+                : (_currentUser?.userRole == UserRole.admin
+                    ? 'คุณยังไม่มีสาขาที่ต้องดูแล'
+                    : 'ยังไม่มีสาขา'),
             style: TextStyle(
               fontSize: 18,
               color: Colors.white,
@@ -859,9 +863,11 @@ class _BranchlistUiState extends State<BranchlistUi> {
           Text(
             _searchQuery.isNotEmpty
                 ? 'ลองเปลี่ยนคำค้นหา หรือกรองสถานะ'
-                : _isAnonymous
-                    ? 'ไม่มีสาขาที่เปิดใช้งานในขณะนี้'
-                    : 'เริ่มต้นโดยการเพิ่มสาขาแรก',
+                : (_currentUser?.userRole == UserRole.admin
+                    ? 'โปรดรอให้ Super Admin กำหนดสาขาให้คุณ'
+                    : (_isAnonymous
+                        ? 'ไม่มีสาขาที่เปิดใช้งานในขณะนี้'
+                        : 'เริ่มต้นโดยการเพิ่มสาขาแรก')),
             style: TextStyle(
               fontSize: 14,
               color: Colors.black,
