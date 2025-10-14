@@ -662,12 +662,18 @@ class _TenantAddUIState extends State<TenantAddUI>
             _selectedImageName ?? 'tenant_profile.jpg',
             'tenant-images',
             folder: 'profiles',
+            prefix: 'tenant',
+            context:
+                'profile_${_currentUser!.userId}_${_selectedBranchId ?? 'global'}',
           );
         } else if (!kIsWeb && _selectedImage != null) {
           uploadResult = await ImageService.uploadImage(
             _selectedImage!,
             'tenant-images',
             folder: 'profiles',
+            prefix: 'tenant',
+            context:
+                'profile_${_currentUser!.userId}_${_selectedBranchId ?? 'global'}',
           );
         }
 
