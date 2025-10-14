@@ -121,9 +121,7 @@ class IssueService {
       // Tenant can only see their own issues
       if (currentUser.userRole == UserRole.tenant &&
           currentUser.tenantId != null) {
-        var query = _supabase
-            .from('issue_reports')
-            .select('''
+        var query = _supabase.from('issue_reports').select('''
           *,
           rooms!inner(
             room_id,
@@ -132,8 +130,7 @@ class IssueService {
           ),
           tenants(tenant_id, tenant_fullname, tenant_phone),
           assigned_user:assigned_to(user_id, user_name, user_email)
-        ''')
-            .eq('tenant_id', currentUser.tenantId!);
+        ''').eq('tenant_id', currentUser.tenantId!);
 
         if (issueStatus != null && issueStatus.isNotEmpty) {
           query = query.eq('issue_status', issueStatus);
@@ -172,10 +169,12 @@ class IssueService {
           .from('branch_managers')
           .select('branch_id')
           .eq('user_id', userId);
-      return rows
-          .map<String>((r) => r['branch_id']?.toString())
-          .where((id) => id != null && id.isNotEmpty)
-          .cast<String>()
+      // Normalize and filter null/empty values safely
+      return List<Map<String, dynamic>>.from(rows)
+          .map((r) => r['branch_id'])
+          .where((id) => id != null)
+          .map<String>((id) => id.toString())
+          .where((id) => id.isNotEmpty)
           .toList();
     } catch (e) {
       return [];
@@ -185,10 +184,7 @@ class IssueService {
   /// Get issue by ID
   static Future<Map<String, dynamic>?> getIssueById(String issueId) async {
     try {
-      final result =
-          await _supabase
-              .from('issue_reports')
-              .select('''
+      final result = await _supabase.from('issue_reports').select('''
         *,
         rooms!inner(
           room_id,
@@ -198,9 +194,7 @@ class IssueService {
         tenants(tenant_id, tenant_fullname, tenant_phone),
         assigned_user:assigned_to(user_id, user_name, user_email),
         created_user:created_by(user_id, user_name)
-      ''')
-              .eq('issue_id', issueId)
-              .maybeSingle();
+      ''').eq('issue_id', issueId).maybeSingle();
 
       if (result == null) return null;
 
@@ -274,12 +268,11 @@ class IssueService {
         'created_by': currentUser.userId,
       };
 
-      final result =
-          await _supabase
-              .from('issue_reports')
-              .insert(insertData)
-              .select()
-              .single();
+      final result = await _supabase
+          .from('issue_reports')
+          .insert(insertData)
+          .select()
+          .single();
 
       return {'success': true, 'message': 'รายงานปัญหาสำเร็จ', 'data': result};
     } on PostgrestException catch (e) {
@@ -333,13 +326,12 @@ class IssueService {
         updateData['resolved_date'] = DateTime.now().toIso8601String();
       }
 
-      final result =
-          await _supabase
-              .from('issue_reports')
-              .update(updateData)
-              .eq('issue_id', issueId)
-              .select()
-              .single();
+      final result = await _supabase
+          .from('issue_reports')
+          .update(updateData)
+          .eq('issue_id', issueId)
+          .select()
+          .single();
 
       return {
         'success': true,
@@ -376,8 +368,8 @@ class IssueService {
 
       await _supabase
           .from('issue_reports')
-          .update({'assigned_to': userId, 'issue_status': 'in_progress'})
-          .eq('issue_id', issueId);
+          .update({'assigned_to': userId, 'issue_status': 'in_progress'}).eq(
+              'issue_id', issueId);
 
       return {'success': true, 'message': 'มอบหมายงานสำเร็จ'};
     } catch (e) {
