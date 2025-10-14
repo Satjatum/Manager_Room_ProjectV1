@@ -52,6 +52,7 @@ class _TenantEditUIState extends State<TenantEditUI>
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
   String? _currentImageUrl;
+  String? _previousImageUrl; // เก็บ URL เดิมไว้สำหรับลบตอนบันทึก
 
   // Contract data
   Map<String, dynamic>? _activeContract;
@@ -103,6 +104,7 @@ class _TenantEditUIState extends State<TenantEditUI>
     _selectedGender = widget.tenantData['gender'];
     _isActive = widget.tenantData['is_active'] ?? true;
     _currentImageUrl = widget.tenantData['tenant_profile'];
+    _previousImageUrl = _currentImageUrl; // sync ค่าเริ่มต้น
   }
 
   Future<void> _loadActiveContract() async {
@@ -482,10 +484,10 @@ class _TenantEditUIState extends State<TenantEditUI>
           ),
         );
 
-        // Delete old image if exists
-        if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+        // Delete old image if exists (ใช้ค่าเดิมก่อนการแก้ไข)
+        if (_previousImageUrl != null && _previousImageUrl!.isNotEmpty) {
           try {
-            await ImageService.deleteImage(_currentImageUrl!);
+            await ImageService.deleteImage(_previousImageUrl!);
           } catch (e) {
             debugPrint('Error deleting old image: $e');
           }
@@ -519,14 +521,15 @@ class _TenantEditUIState extends State<TenantEditUI>
           throw Exception(
               uploadResult?['message'] ?? 'ไม่สามารถอัปโหลดรูปภาพได้');
         }
-      } else if (_imageChanged && _currentImageUrl != null) {
+      } else if (_imageChanged && _previousImageUrl != null) {
         // Image was removed
         try {
-          await ImageService.deleteImage(_currentImageUrl!);
+          await ImageService.deleteImage(_previousImageUrl!);
         } catch (e) {
           debugPrint('Error deleting image: $e');
         }
         imageUrl = null;
+        _previousImageUrl = null;
       }
 
       if (_tabController.index == 0) {
