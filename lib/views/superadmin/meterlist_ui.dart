@@ -3,11 +3,13 @@ import 'package:manager_room_project/views/superadmin/invoice_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/meter_add_ui.dart';
 import 'package:manager_room_project/views/superadmin/meter_edit_ui.dart';
 import 'package:manager_room_project/views/superadmin/meterlist_detail_ui.dart';
+import 'package:manager_room_project/views/utility_setting_ui.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
 import '../../services/meter_service.dart';
 import '../../services/branch_service.dart';
 import '../../services/room_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/utility_rate_service.dart';
 import '../../models/user_models.dart';
 import '../../widgets/colors.dart';
 
@@ -43,6 +45,10 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
   Map<String, dynamic>? _stats;
   UserModel? _currentUser;
 
+  // แคชตรวจสอบว่าแต่ละสาขามีอัตราค่าบริการที่เปิดใช้งานหรือไม่
+  final Map<String, bool> _branchHasActiveRates = {};
+  bool _selectedBranchHasRates = true;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +67,42 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
   void _handleTabChange() {
     if (_tabController.indexIsChanging) {
       _applyFilters();
+    }
+  }
+
+  Future<void> _updateBranchRatesCache() async {
+    try {
+      // รวม branch_id จากรายการที่โหลดและสาขาที่เลือกไว้
+      final Set<String> branchIds = {};
+      for (final r in _meterReadings) {
+        final bid = r['branch_id'];
+        if (bid != null && bid is String && bid.isNotEmpty) {
+          branchIds.add(bid);
+        }
+      }
+      if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+        branchIds.add(_selectedBranchId!);
+      }
+
+      // เรียกดูอัตราค่าบริการเฉพาะสาขาที่ยังไม่ได้อยู่ในแคช
+      for (final bid in branchIds) {
+        if (_branchHasActiveRates.containsKey(bid)) continue;
+        final rates = await UtilityRatesService.getActiveRatesForBranch(bid);
+        _branchHasActiveRates[bid] = rates.isNotEmpty;
+      }
+
+      // อัปเดตสถานะของสาขาที่เลือกสำหรับแสดง Helper
+      if (_selectedBranchId != null && _selectedBranchId!.isNotEmpty) {
+        _selectedBranchHasRates =
+            _branchHasActiveRates[_selectedBranchId!] ?? true;
+      } else {
+        _selectedBranchHasRates = true; // เมื่อไม่ได้เลือกสาขา ไม่แสดง Helper
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      // หากตรวจสอบไม่ได้ ให้ไม่บล็อกการใช้งานปุ่มออกบิล
+      if (mounted) setState(() => _selectedBranchHasRates = true);
     }
   }
 
@@ -322,6 +364,37 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
                             'ยกเลิก (${_getReadingCountByStatus('cancelled')})'),
                   ],
                 ),
+
+                // Helper: ยังไม่ตั้งค่าอัตราค่าบริการสำหรับสาขาที่เลือก
+                if (_selectedBranchId != null && !_selectedBranchHasRates) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    color: Colors.amber.shade50,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.orange,
+                      ),
+                      title: const Text(
+                        'ยังไม่สามารถออกบิลได้ เนื่องจากสาขานี้ยังไม่ได้กำหนดอัตราค่าบริการค่าน้ำและค่าไฟ',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      trailing: TextButton.icon(
+                        icon: const Icon(Icons.settings),
+                        label: const Text('ไปตั้งค่าอัตราค่าบริการ'),
+                        onPressed: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const UtilityRatesManagementUi(),
+                            ),
+                          );
+                          // กลับมาจากหน้าตั้งค่าแล้ว รีเช็คสถานะอีกครั้ง
+                          await _updateBranchRatesCache();
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -898,6 +971,9 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
     final readingId = reading['reading_id'];
     final readingNumber = reading['reading_number'];
     final invoiceId = reading['invoice_id']; // เช็คว่าออกบิลแล้วหรือยัง
+    final String? branchId = reading['branch_id'];
+    final bool branchHasRates =
+        branchId == null ? true : (_branchHasActiveRates[branchId] ?? true);
 
     final List<PopupMenuEntry<String>> menuItems = [];
 
@@ -1169,6 +1245,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       });
 
       _applyFilters();
+      await _updateBranchRatesCache();
     } catch (e) {
       _showErrorSnackBar('เกิดข้อผิดพลาดในการโหลดข้อมูล: $e');
     } finally {
@@ -1293,6 +1370,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       _loadMeterReadings(),
       _loadStats(),
     ]);
+    await _updateBranchRatesCache();
   }
 
   // ยืนยันค่ามิเตอร์
@@ -1475,6 +1553,18 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
 
       if (branchId == null) {
         _showErrorSnackBar('ไม่พบข้อมูลสาขา กรุณาตรวจสอบข้อมูลห้องพัก');
+        return;
+      }
+
+      // ตรวจสอบว่ามีอัตราค่าบริการที่เปิดใช้งานในสาขานี้หรือไม่
+      final hasRates = _branchHasActiveRates[branchId] ??
+          (await UtilityRatesService.getActiveRatesForBranch(branchId))
+              .isNotEmpty;
+      if (!hasRates) {
+        _showDetailedErrorDialog(
+          'ยังไม่สามารถออกบิลได้',
+          'ยังไม่สามารถออกบิลได้ เนื่องจากสาขานี้ยังไม่ได้กำหนดอัตราค่าบริการค่าน้ำและค่าไฟ',
+        );
         return;
       }
       // นำทางไปหน้าสร้างบิลใหม่พร้อมข้อมูลจากการอ่านมิเตอร์
