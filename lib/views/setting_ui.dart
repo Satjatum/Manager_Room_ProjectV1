@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/views/payment_setting_ui.dart';
 import 'package:manager_room_project/views/utility_setting_ui.dart';
+import 'package:manager_room_project/views/payment_qr_management_ui.dart';
 import '../widgets/navbar.dart';
 import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
@@ -495,6 +496,22 @@ class _SettingUiState extends State<SettingUi> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => const PaymentSettingsUi(),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.qr_code_2, color: Colors.teal),
+                        title: const Text('ตั้งค่าการชำระเงิน • เพิ่มบัญชี/QR'),
+                        subtitle:
+                            const Text('เพิ่ม/แก้ไข/ปิดใช้งาน บัญชีธนาคารและ QR ของสาขา'),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PaymentQrManagementUi(),
                             ),
                           );
                         },

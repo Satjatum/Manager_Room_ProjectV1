@@ -7,6 +7,7 @@ import 'package:manager_room_project/views/superadmin/meterlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
 import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
+import 'package:manager_room_project/views/tenant/bill_list_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
@@ -193,16 +194,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
         activeIcon: Icons.home,
         label: 'หน้าแรก',
       ),
-      // NavItem(
-      //   icon: Icons.receipt_long_outlined,
-      //   activeIcon: Icons.receipt_long,
-      //   label: 'บิล',
-      // ),
-      // NavItem(
-      //   icon: Icons.payment_outlined,
-      //   activeIcon: Icons.payment,
-      //   label: 'ชำระเงิน',
-      // ),
+      NavItem(
+        icon: Icons.receipt_long_outlined,
+        activeIcon: Icons.receipt_long,
+        label: 'บิลของฉัน',
+      ),
       NavItem(
         icon: Icons.report_problem_outlined,
         activeIcon: Icons.report_problem,
@@ -217,6 +213,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
 
     _pages = [
       const TenantdashUi(),
+      const TenantBillsListPage(),
       const IssuesListScreen(),
       const SettingUi(),
     ];

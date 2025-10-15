@@ -21,6 +21,28 @@ CREATE TABLE public.branch_managers (
   CONSTRAINT branch_managers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
   CONSTRAINT branch_managers_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(user_id)
 );
+CREATE TABLE public.branch_payment_qr (
+  qr_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid NOT NULL,
+  bank_name character varying NOT NULL,
+  bank_code character varying,
+  account_type character varying,
+  account_name character varying NOT NULL,
+  account_number character varying NOT NULL,
+  promptpay_type character varying CHECK (promptpay_type::text = ANY (ARRAY['mobile'::character varying::text, 'citizen_id'::character varying::text, 'tax_id'::character varying::text, 'ewallet'::character varying::text])),
+  promptpay_id character varying,
+  qr_code_image text NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true,
+  display_order integer DEFAULT 0,
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT branch_payment_qr_pkey PRIMARY KEY (qr_id),
+  CONSTRAINT branch_payment_qr_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
+  CONSTRAINT branch_payment_qr_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
 CREATE TABLE public.branches (
   branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
   branch_code character varying NOT NULL UNIQUE,
@@ -182,6 +204,37 @@ CREATE TABLE public.payment_settings (
   CONSTRAINT payment_settings_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id),
   CONSTRAINT payment_settings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
 );
+CREATE TABLE public.payment_slips (
+  slip_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_id uuid NOT NULL,
+  tenant_id uuid NOT NULL,
+  qr_id uuid,
+  slip_image text NOT NULL,
+  slip_number character varying,
+  paid_amount numeric NOT NULL,
+  payment_date timestamp with time zone NOT NULL,
+  payment_time time without time zone,
+  transfer_from_bank character varying,
+  transfer_from_account character varying,
+  transfer_to_account character varying,
+  slip_status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (slip_status::text = ANY (ARRAY['pending'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text, 'duplicate'::character varying::text])),
+  slip_type character varying DEFAULT 'manual'::character varying CHECK (slip_type::text = ANY (ARRAY['manual'::character varying::text, 'auto_detected'::character varying::text])),
+  ocr_data jsonb,
+  tenant_notes text,
+  rejection_reason text,
+  verified_by uuid,
+  verified_at timestamp with time zone,
+  admin_notes text,
+  payment_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payment_slips_pkey PRIMARY KEY (slip_id),
+  CONSTRAINT payment_slips_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(invoice_id),
+  CONSTRAINT payment_slips_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
+  CONSTRAINT payment_slips_qr_id_fkey FOREIGN KEY (qr_id) REFERENCES public.branch_payment_qr(qr_id),
+  CONSTRAINT payment_slips_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.users(user_id),
+  CONSTRAINT payment_slips_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.payments(payment_id)
+);
 CREATE TABLE public.payments (
   payment_id uuid NOT NULL DEFAULT gen_random_uuid(),
   payment_number character varying NOT NULL UNIQUE,
@@ -199,7 +252,9 @@ CREATE TABLE public.payments (
   created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  slip_id uuid,
   CONSTRAINT payments_pkey PRIMARY KEY (payment_id),
+  CONSTRAINT payments_slip_id_fkey FOREIGN KEY (slip_id) REFERENCES public.payment_slips(slip_id),
   CONSTRAINT payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id),
   CONSTRAINT payments_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.users(user_id),
   CONSTRAINT payments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
@@ -229,7 +284,7 @@ CREATE TABLE public.rental_contracts (
 CREATE TABLE public.room_amenities (
   room_id uuid NOT NULL,
   amenity_id uuid NOT NULL,
-  CONSTRAINT room_amenities_pkey PRIMARY KEY (amenity_id, room_id),
+  CONSTRAINT room_amenities_pkey PRIMARY KEY (room_id, amenity_id),
   CONSTRAINT room_amenities_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
   CONSTRAINT room_amenities_amenity_id_fkey FOREIGN KEY (amenity_id) REFERENCES public.amenities(amenities_id)
 );
@@ -277,6 +332,19 @@ CREATE TABLE public.rooms (
   CONSTRAINT rooms_room_type_id_fkey FOREIGN KEY (room_type_id) REFERENCES public.room_types(roomtype_id),
   CONSTRAINT rooms_room_category_id_fkey FOREIGN KEY (room_category_id) REFERENCES public.room_categories(roomcate_id),
   CONSTRAINT rooms_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.slip_verification_history (
+  history_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  slip_id uuid NOT NULL,
+  action character varying NOT NULL,
+  action_by uuid NOT NULL,
+  previous_status character varying,
+  new_status character varying NOT NULL,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT slip_verification_history_pkey PRIMARY KEY (history_id),
+  CONSTRAINT slip_verification_history_slip_id_fkey FOREIGN KEY (slip_id) REFERENCES public.payment_slips(slip_id),
+  CONSTRAINT slip_verification_history_action_by_fkey FOREIGN KEY (action_by) REFERENCES public.users(user_id)
 );
 CREATE TABLE public.tenants (
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
