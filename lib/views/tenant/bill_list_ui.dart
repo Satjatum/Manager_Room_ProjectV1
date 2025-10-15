@@ -16,6 +16,13 @@ class _TenantBillsListPageState extends State<TenantBillsListPage> {
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;
 
+  double _asDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0;
+    return 0;
+  }
+
   Future<List<Map<String, dynamic>>> _loadBills() async {
     final user = await AuthMiddleware.getCurrentUser();
     if (user == null || user.tenantId == null) return [];
@@ -59,7 +66,7 @@ class _TenantBillsListPageState extends State<TenantBillsListPage> {
                     final bill = items[index];
                     final month = bill['invoice_month'] ?? _selectedMonth;
                     final year = bill['invoice_year'] ?? _selectedYear;
-                    final total = (bill['total_amount'] ?? 0).toDouble();
+                    final total = _asDouble(bill['total_amount']);
                     final status = (bill['invoice_status'] ?? '').toString();
                     final number = (bill['invoice_number'] ?? '').toString();
 

@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/services/invoice_service.dart';
 
+double _asDouble(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v) ?? 0;
+  return 0;
+}
+
 class TenantBillDetailUi extends StatelessWidget {
   final String invoiceId;
   const TenantBillDetailUi({super.key, required this.invoiceId});
@@ -25,19 +32,25 @@ class TenantBillDetailUi extends StatelessWidget {
           }
 
           final status = (data['invoice_status'] ?? '').toString();
-          final rental = (data['rental_amount'] ?? 0).toDouble();
-          final utilities = (data['utilities_amount'] ?? 0).toDouble();
-          final others = (data['other_charges'] ?? 0).toDouble();
-          final discount = (data['discount_amount'] ?? 0).toDouble();
-          final lateFee = (data['late_fee_amount'] ?? 0).toDouble();
-          final subtotal = (data['subtotal'] ?? 0).toDouble();
-          final total = (data['total_amount'] ?? 0).toDouble();
-          final paid = (data['paid_amount'] ?? 0).toDouble();
+          final rental = _asDouble(data['rental_amount']);
+          final utilities = _asDouble(data['utilities_amount']);
+          final others = _asDouble(data['other_charges']);
+          final discount = _asDouble(data['discount_amount']);
+          final lateFee = _asDouble(data['late_fee_amount']);
+          final subtotal = _asDouble(data['subtotal']);
+          final total = _asDouble(data['total_amount']);
+          final paid = _asDouble(data['paid_amount']);
           final remain = (total - paid);
 
-          final utilLines = (data['utilities'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-          final otherLines = (data['other_charges'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-          final payments = (data['payments'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+          final utilLines =
+              (data['utilities'] as List?)?.cast<Map<String, dynamic>>() ??
+                  const [];
+          final otherLines =
+              (data['other_charges'] as List?)?.cast<Map<String, dynamic>>() ??
+                  const [];
+          final payments =
+              (data['payments'] as List?)?.cast<Map<String, dynamic>>() ??
+                  const [];
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -49,9 +62,12 @@ class TenantBillDetailUi extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('เลขบิล: ${data['invoice_number'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text('เลขบิล: ${data['invoice_number'] ?? '-'}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 4),
-                        Text('เดือน/ปี: ${data['invoice_month'] ?? '-'} / ${data['invoice_year'] ?? '-'}'),
+                        Text(
+                            'เดือน/ปี: ${data['invoice_month'] ?? '-'} / ${data['invoice_year'] ?? '-'}'),
                         if (data['issue_date'] != null)
                           Text('ออกบิล: ${data['issue_date']}'),
                         if (data['due_date'] != null)
@@ -66,7 +82,6 @@ class TenantBillDetailUi extends StatelessWidget {
               Text('ห้อง: ${data['room_number'] ?? '-'}'),
               Text('ผู้เช่า: ${data['tenant_name'] ?? '-'}'),
               const SizedBox(height: 16),
-
               const _SectionHeader('ค่าใช้จ่าย'),
               _kv('ค่าเช่า', rental),
               _kv('ค่าสาธารณูปโภค (รวม)', utilities),
@@ -81,11 +96,11 @@ class TenantBillDetailUi extends StatelessWidget {
                   child: Column(
                     children: utilLines.map((u) {
                       final name = (u['utility_name'] ?? '').toString();
-                      final unit = (u['unit_price'] ?? 0).toDouble();
-                      final usage = (u['usage_amount'] ?? 0).toDouble();
-                      final fixed = (u['fixed_amount'] ?? 0).toDouble();
-                      final add = (u['additional_charge'] ?? 0).toDouble();
-                      final amount = (u['total_amount'] ?? 0).toDouble();
+                      final unit = _asDouble(u['unit_price']);
+                      final usage = _asDouble(u['usage_amount']);
+                      final fixed = _asDouble(u['fixed_amount']);
+                      final add = _asDouble(u['additional_charge']);
+                      final amount = _asDouble(u['total_amount']);
                       String meta = '';
                       if (unit > 0 && usage > 0) {
                         meta = '($usage x ${unit.toStringAsFixed(2)})';
@@ -93,7 +108,9 @@ class TenantBillDetailUi extends StatelessWidget {
                         meta = '(เหมาจ่าย ${fixed.toStringAsFixed(2)})';
                       }
                       if (add > 0) {
-                        meta = meta.isEmpty ? '(+${add.toStringAsFixed(2)})' : '$meta (+${add.toStringAsFixed(2)})';
+                        meta = meta.isEmpty
+                            ? '(+${add.toStringAsFixed(2)})'
+                            : '$meta (+${add.toStringAsFixed(2)})';
                       }
                       return _line(name, amount, meta: meta);
                     }).toList(),
@@ -112,13 +129,12 @@ class TenantBillDetailUi extends StatelessWidget {
                   child: Column(
                     children: otherLines.map((o) {
                       final name = (o['charge_name'] ?? '').toString();
-                      final amount = (o['charge_amount'] ?? 0).toDouble();
+                      final amount = _asDouble(o['charge_amount']);
                       return _line(name, amount);
                     }).toList(),
                   ),
                 ),
               ],
-
               const Divider(height: 24),
               _kv('ส่วนลด', -discount),
               _kv('ค่าปรับล่าช้า', lateFee),
@@ -127,7 +143,6 @@ class TenantBillDetailUi extends StatelessWidget {
               _kv('ยอดรวม', total, emphasize: true),
               _kv('ชำระแล้ว', paid),
               _kv('คงเหลือ', remain, emphasize: true),
-
               const SizedBox(height: 20),
               const _SectionHeader('ประวัติการชำระเงิน'),
               if (payments.isEmpty)
@@ -144,7 +159,7 @@ class TenantBillDetailUi extends StatelessWidget {
                   ),
                   child: Column(
                     children: payments.map((p) {
-                      final amount = (p['payment_amount'] ?? 0).toDouble();
+                      final amount = _asDouble(p['payment_amount']);
                       final date = (p['payment_date'] ?? '').toString();
                       final pstatus = (p['payment_status'] ?? '').toString();
                       return ListTile(
@@ -156,7 +171,6 @@ class TenantBillDetailUi extends StatelessWidget {
                     }).toList(),
                   ),
                 ),
-
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -164,13 +178,16 @@ class TenantBillDetailUi extends StatelessWidget {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () async {
-                          final result = await InvoiceService.updateInvoicePaymentStatus(
+                          final result =
+                              await InvoiceService.updateInvoicePaymentStatus(
                             invoiceId,
                             remain > 0 ? remain : 0,
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result['message'] ?? 'ดำเนินการเสร็จสิ้น')),
+                              SnackBar(
+                                  content: Text(result['message'] ??
+                                      'ดำเนินการเสร็จสิ้น')),
                             );
                             Navigator.pop(context);
                           }
@@ -183,7 +200,8 @@ class TenantBillDetailUi extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ดาวน์โหลดสลิป: ยังไม่รองรับ')),
+                            const SnackBar(
+                                content: Text('ดาวน์โหลดสลิป: ยังไม่รองรับ')),
                           );
                         },
                         child: const Text('ดาวน์โหลดสลิป'),
@@ -224,7 +242,8 @@ class TenantBillDetailUi extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       title: Text(label),
       subtitle: meta == null || meta.isEmpty ? null : Text(meta),
-      trailing: Text(value.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: Text(value.toStringAsFixed(2),
+          style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }
