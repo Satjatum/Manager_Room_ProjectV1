@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:manager_room_project/services/invoice_service.dart';
+import 'package:manager_room_project/views/tenant/tenant_pay_bill_ui.dart';
 
 double _asDouble(dynamic v) {
   if (v == null) return 0;
@@ -178,21 +179,19 @@ class TenantBillDetailUi extends StatelessWidget {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () async {
-                          final result =
-                              await InvoiceService.updateInvoicePaymentStatus(
-                            invoiceId,
-                            remain > 0 ? remain : 0,
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TenantPayBillUi(
+                                invoiceId: invoiceId,
+                              ),
+                            ),
                           );
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(result['message'] ??
-                                      'ดำเนินการเสร็จสิ้น')),
-                            );
                             Navigator.pop(context);
                           }
                         },
-                        child: const Text('ชำระเงิน'),
+                        child: const Text('ชำระเงิน/อัปโหลดสลิป'),
                       ),
                     ),
                   if (status == 'paid')
