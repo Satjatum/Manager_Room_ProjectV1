@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:manager_room_project/middleware/auth_middleware.dart';
 import 'package:manager_room_project/services/invoice_service.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
+import 'package:manager_room_project/views/tenant/bill_detail_ui.dart';
 
 class TenantBillsListPage extends StatefulWidget {
   const TenantBillsListPage({super.key});
@@ -83,7 +84,7 @@ class _TenantBillsListPageState extends State<TenantBillsListPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => TenantBillDetailPage(
+                            builder: (_) => TenantBillDetailUi(
                               invoiceId: bill['invoice_id'],
                             ),
                           ),
@@ -117,7 +118,8 @@ class _TenantBillsListPageState extends State<TenantBillsListPage> {
               items: List.generate(12, (i) => i + 1)
                   .map((m) => DropdownMenuItem(value: m, child: Text('$m')))
                   .toList(),
-              onChanged: (v) => setState(() => _selectedMonth = v ?? _selectedMonth),
+              onChanged: (v) =>
+                  setState(() => _selectedMonth = v ?? _selectedMonth),
               onSaved: (_) => setState(() {}),
             ),
           ),
@@ -134,7 +136,8 @@ class _TenantBillsListPageState extends State<TenantBillsListPage> {
               items: _yearOptions()
                   .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
                   .toList(),
-              onChanged: (v) => setState(() => _selectedYear = v ?? _selectedYear),
+              onChanged: (v) =>
+                  setState(() => _selectedYear = v ?? _selectedYear),
             ),
           ),
           const SizedBox(width: 8),
@@ -221,121 +224,8 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         _label(),
-        style: TextStyle(color: _color(), fontSize: 11, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class TenantBillDetailPage extends StatelessWidget {
-  final String invoiceId;
-  const TenantBillDetailPage({super.key, required this.invoiceId});
-
-  Future<Map<String, dynamic>?> _load() {
-    return InvoiceService.getInvoiceById(invoiceId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('รายละเอียดบิล')),
-      body: FutureBuilder<Map<String, dynamic>?>(
-        future: _load(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snapshot.data;
-          if (data == null) {
-            return const Center(child: Text('ไม่พบบิล'));
-          }
-
-          final status = (data['invoice_status'] ?? '').toString();
-          final rental = (data['rental_amount'] ?? 0).toDouble();
-          final utilities = (data['utilities_amount'] ?? 0).toDouble();
-          final others = (data['other_charges'] ?? 0).toDouble();
-          final discount = (data['discount_amount'] ?? 0).toDouble();
-          final lateFee = (data['late_fee_amount'] ?? 0).toDouble();
-          final subtotal = (data['subtotal'] ?? 0).toDouble();
-          final total = (data['total_amount'] ?? 0).toDouble();
-          final paid = (data['paid_amount'] ?? 0).toDouble();
-          final remain = (total - paid);
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('เลขบิล: ${data['invoice_number'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                Text('ห้อง: ${data['room_number'] ?? '-'}'),
-                Text('ผู้เช่า: ${data['tenant_name'] ?? '-'}'),
-                const SizedBox(height: 16),
-                _row('ค่าเช่า', rental),
-                _row('ค่าสาธารณูปโภค', utilities),
-                _row('ค่าใช้จ่ายอื่น', others),
-                const Divider(),
-                _row('ส่วนลด', -discount),
-                _row('ค่าปรับล่าช้า', lateFee),
-                const Divider(),
-                _row('ยอดก่อนชำระ', subtotal),
-                _row('ยอดรวม', total, emphasize: true),
-                _row('ชำระแล้ว', paid),
-                _row('คงเหลือ', remain, emphasize: true),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    if (status != 'paid')
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final result = await InvoiceService.updateInvoicePaymentStatus(invoiceId, remain > 0 ? remain : 0);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(result['message'] ?? 'ดำเนินการเสร็จสิ้น')),
-                              );
-                              Navigator.pop(context);
-                            }
-                          },
-                          child: const Text('ชำระเงิน'),
-                        ),
-                      ),
-                    if (status == 'paid')
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('ดาวน์โหลดสลิป: ยังไม่รองรับ')),
-                            );
-                          },
-                          child: const Text('ดาวน์โหลดสลิป'),
-                        ),
-                      ),
-                  ],
-                )
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _row(String label, double value, {bool emphasize = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            value.toStringAsFixed(2),
-            style: TextStyle(
-              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
-              fontSize: emphasize ? 16 : 14,
-            ),
-          )
-        ],
+        style: TextStyle(
+            color: _color(), fontSize: 11, fontWeight: FontWeight.w600),
       ),
     );
   }
