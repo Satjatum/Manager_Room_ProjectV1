@@ -37,6 +37,9 @@ dependencies:
 
   # file picker
   file_picker: ^10.3.3
+  
+  # URL launcher (open/download slip in browser)
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
