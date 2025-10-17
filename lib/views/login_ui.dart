@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
-import 'superadmin/superadmindash_ui.dart';
+import 'sadmin/superadmindash_ui.dart';
 import 'tenant/tenantdash_ui.dart';
 
 class LoginUi extends StatefulWidget {

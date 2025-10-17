@@ -7,7 +7,7 @@ import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
 import 'login_ui.dart';
-import '../views/superadmin/user_management_ui.dart';
+import 'sadmin/user_management_ui.dart';
 
 class SettingUi extends StatefulWidget {
   const SettingUi({Key? key}) : super(key: key);
@@ -502,16 +502,18 @@ class _SettingUiState extends State<SettingUi> {
                       ),
                       const Divider(height: 1),
                       ListTile(
-                        leading: const Icon(Icons.qr_code_2, color: Colors.teal),
+                        leading:
+                            const Icon(Icons.qr_code_2, color: Colors.teal),
                         title: const Text('ตั้งค่าการชำระเงิน • เพิ่มบัญชี/QR'),
-                        subtitle:
-                            const Text('เพิ่ม/แก้ไข/ปิดใช้งาน บัญชีธนาคารและ QR ของสาขา'),
+                        subtitle: const Text(
+                            'เพิ่ม/แก้ไข/ปิดใช้งาน บัญชีธนาคารและ QR ของสาขา'),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const PaymentQrManagementUi(),
+                              builder: (context) =>
+                                  const PaymentQrManagementUi(),
                             ),
                           );
                         },

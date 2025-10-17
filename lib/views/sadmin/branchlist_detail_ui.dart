@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
+import 'package:manager_room_project/views/sadmin/roomlist_ui.dart';
+import 'package:manager_room_project/views/sadmin/tenantlist_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/branch_service.dart';

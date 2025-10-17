@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/amenities_ui.dart';
-import 'package:manager_room_project/views/superadmin/room_add_ui.dart';
-import 'package:manager_room_project/views/superadmin/room_edit_ui.dart';
-import 'package:manager_room_project/views/superadmin/roomcate_ui.dart';
-import 'package:manager_room_project/views/superadmin/roomlist_detail_ui.dart';
-import 'package:manager_room_project/views/superadmin/roomtype_ui.dart';
+import 'package:manager_room_project/views/sadmin/amenities_ui.dart';
+import 'package:manager_room_project/views/sadmin/room_add_ui.dart';
+import 'package:manager_room_project/views/sadmin/room_edit_ui.dart';
+import 'package:manager_room_project/views/sadmin/roomcate_ui.dart';
+import 'package:manager_room_project/views/sadmin/roomlist_detail_ui.dart';
+import 'package:manager_room_project/views/sadmin/roomtype_ui.dart';
 // เพิ่ม import หน้าจัดการข้อมูลพื้นฐาน
 
 import '../../models/user_models.dart';

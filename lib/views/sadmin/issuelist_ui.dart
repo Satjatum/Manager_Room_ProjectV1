@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/issuelist_detail_ui.dart';
+import 'package:manager_room_project/views/sadmin/issuelist_detail_ui.dart';
 import 'package:manager_room_project/views/tenant/issue_add_ui.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
 import '../../services/issue_service.dart';
