@@ -664,7 +664,7 @@ class _SettingUiState extends State<SettingUi> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(currentIndex: 4),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 5),
     );
   }
 }

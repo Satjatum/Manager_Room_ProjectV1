@@ -5,6 +5,7 @@ import 'package:manager_room_project/services/branch_service.dart';
 import 'package:manager_room_project/models/user_models.dart';
 import 'package:manager_room_project/widgets/colors.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
+import 'package:manager_room_project/views/sadmin/payment_verification_detail_ui.dart';
 
 class PaymentVerificationPage extends StatefulWidget {
   const PaymentVerificationPage({super.key});
@@ -371,9 +372,21 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
     final createdAt = (s['created_at'] ?? '').toString();
     final canAction = status == 'pending';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+    return InkWell(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentVerificationDetailPage(
+              slipId: (s['slip_id'] ?? '').toString(),
+            ),
+          ),
+        );
+        if (mounted) await _load();
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,9 +459,9 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
               ],
             ),
             const SizedBox(height: 12),
-            if (canAction)
-              Row(
-                children: [
+            Row(
+              children: [
+                if (canAction) ...[
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _rejectSlip(s),
@@ -469,11 +482,29 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
                       ),
                     ),
                   ),
+                ] else ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PaymentVerificationDetailPage(
+                              slipId: (s['slip_id'] ?? '').toString(),
+                            ),
+                          ),
+                        );
+                        if (mounted) await _load();
+                      },
+                      icon: const Icon(Icons.info_outline),
+                      label: const Text('รายละเอียด'),
+                    ),
+                  ),
                 ],
-              )
-            else
-              const SizedBox.shrink(),
+              ],
+            ),
           ],
+        ),
         ),
       ),
     );
