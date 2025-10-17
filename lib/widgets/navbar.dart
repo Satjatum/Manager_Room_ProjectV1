@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:manager_room_project/views/admin/admindash_ui.dart';
-import 'package:manager_room_project/views/superadmin/branchlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/issuelist_ui.dart';
-import 'package:manager_room_project/views/superadmin/meterlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/roomlist_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenantlist_ui.dart';
+import 'package:manager_room_project/views/sadmin/branchlist_ui.dart';
+import 'package:manager_room_project/views/sadmin/issuelist_ui.dart';
+import 'package:manager_room_project/views/sadmin/meterlist_ui.dart';
+import 'package:manager_room_project/views/sadmin/payment_verification_ui.dart';
+import 'package:manager_room_project/views/sadmin/superadmindash_ui.dart';
 import 'package:manager_room_project/views/tenant/tenantdash_ui.dart';
 import 'package:manager_room_project/views/tenant/bill_list_ui.dart';
 import 'package:manager_room_project/widgets/colors.dart';
@@ -13,7 +12,6 @@ import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
 import '../views/login_ui.dart';
 import '../views/setting_ui.dart';
-import '../views/superadmin/superadmindash_ui.dart';
 
 class AppBottomNav extends StatefulWidget {
   final int currentIndex;
@@ -102,6 +100,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'มิเตอร์',
       ),
       NavItem(
+        icon: Icons.payments_outlined,
+        activeIcon: Icons.payments,
+        label: 'ชำระเงิน',
+      ),
+      NavItem(
         icon: Icons.settings_outlined,
         activeIcon: Icons.settings,
         label: 'ตั้งค่า',
@@ -113,6 +116,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
       const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
       const IssuesListScreen(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
       const MeterReadingsListPage(), // Meters - ใส่ page ที่ถูกต้องตรงนี้
+      const PaymentVerificationPage(), // Payments verification
       const SettingUi(), // Settings
     ];
   }
@@ -140,6 +144,11 @@ class _AppBottomNavState extends State<AppBottomNav> {
         label: 'มิเตอร์',
       ),
       NavItem(
+        icon: Icons.payments_outlined,
+        activeIcon: Icons.payments,
+        label: 'ชำระเงิน',
+      ),
+      NavItem(
         icon: Icons.settings_outlined,
         activeIcon: Icons.settings,
         label: 'ตั้งค่า',
@@ -151,6 +160,7 @@ class _AppBottomNavState extends State<AppBottomNav> {
       const BranchlistUi(), // Branches - ใส่ page ที่ถูกต้องตรงนี้
       const IssuesListScreen(), // Reports - ใส่ page ที่ถูกต้องตรงนี้
       const MeterReadingsListPage(), // Meters - ใส่ page ที่ถูกต้องตรงนี้
+      const PaymentVerificationPage(), // Payments verification
       const SettingUi(), // Settings
     ];
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/tenant_add_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenant_edit_ui.dart';
-import 'package:manager_room_project/views/superadmin/tenantlist_detail_ui.dart';
+import 'package:manager_room_project/views/sadmin/tenant_add_ui.dart';
+import 'package:manager_room_project/views/sadmin/tenant_edit_ui.dart';
+import 'package:manager_room_project/views/sadmin/tenantlist_detail_ui.dart';
 import '../../models/user_models.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../services/tenant_service.dart';

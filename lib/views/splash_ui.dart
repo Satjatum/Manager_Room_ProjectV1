@@ -4,7 +4,7 @@ import '../services/auth_service.dart';
 import '../middleware/auth_middleware.dart';
 import '../models/user_models.dart';
 import 'login_ui.dart';
-import 'superadmin/superadmindash_ui.dart';
+import 'sadmin/superadmindash_ui.dart';
 
 class SplashUi extends StatefulWidget {
   const SplashUi({Key? key}) : super(key: key);

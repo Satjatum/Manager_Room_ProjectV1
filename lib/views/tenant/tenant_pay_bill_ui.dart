@@ -154,7 +154,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
         paidAmount: amount,
         paymentDateTime: _paymentDateTime,
         slipImageUrl: uploadResult['url'],
-        tenantNotes: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        tenantNotes:
+            _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       );
 
       if (mounted) {
@@ -259,7 +260,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('สรุปยอด', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('สรุปยอด',
+                style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             _row('ยอดรวม', total),
             _row('ชำระแล้ว', paid),
@@ -326,8 +328,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                       Text(accountName),
                       if (isPrimary)
                         const Text('บัญชีหลัก',
-                            style: TextStyle(
-                                color: Colors.green, fontSize: 12)),
+                            style:
+                                TextStyle(color: Colors.green, fontSize: 12)),
                       const SizedBox(height: 8),
                       if (image.isNotEmpty)
                         ClipRRect(
@@ -385,7 +387,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                     final date = await showDatePicker(
                       context: context,
                       initialDate: _paymentDateTime,
-                      firstDate: DateTime.now().subtract(const Duration(days: 7)),
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 7)),
                       lastDate: DateTime.now().add(const Duration(days: 7)),
                     );
                     if (date == null) return;
@@ -473,7 +476,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                       const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: () => setState(() => _slipFile = null),
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
                         label: const Text('ลบ',
                             style: TextStyle(color: Colors.red)),
                       ),

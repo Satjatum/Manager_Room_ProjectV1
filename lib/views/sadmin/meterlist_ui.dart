@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:manager_room_project/views/superadmin/invoice_add_ui.dart';
-import 'package:manager_room_project/views/superadmin/meter_add_ui.dart';
-import 'package:manager_room_project/views/superadmin/meter_edit_ui.dart';
-import 'package:manager_room_project/views/superadmin/meterlist_detail_ui.dart';
+import 'package:manager_room_project/views/sadmin/invoice_add_ui.dart';
+import 'package:manager_room_project/views/sadmin/meter_add_ui.dart';
+import 'package:manager_room_project/views/sadmin/meter_edit_ui.dart';
+import 'package:manager_room_project/views/sadmin/meterlist_detail_ui.dart';
 import 'package:manager_room_project/views/utility_setting_ui.dart';
 import 'package:manager_room_project/widgets/navbar.dart';
 import '../../services/meter_service.dart';

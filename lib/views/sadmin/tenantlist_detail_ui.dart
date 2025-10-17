@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 // import 'package:manager_room_project/views/superadmin/contract_add_ui.dart';
-import 'package:manager_room_project/views/superadmin/contract_edit_ui.dart';
-import 'package:manager_room_project/views/superadmin/contractlist_detail_ui.dart';
+import 'package:manager_room_project/views/sadmin/contract_edit_ui.dart';
+import 'package:manager_room_project/views/sadmin/contractlist_detail_ui.dart';
 import '../../services/tenant_service.dart';
 import '../../middleware/auth_middleware.dart';
 import '../../models/user_models.dart';
