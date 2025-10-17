@@ -128,7 +128,7 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
         uploadResult = await ImageService.uploadImageFromBytes(
           bytes,
           _slipFile!.name,
-          'payment_slips',
+          'payment-slips',
           folder: widget.invoiceId,
           prefix: 'slip',
           context: 'invoice_${widget.invoiceId}',
@@ -136,7 +136,7 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
       } else {
         uploadResult = await ImageService.uploadImage(
           File(_slipFile!.path),
-          'payment_slips',
+          'payment-slips',
           folder: widget.invoiceId,
           prefix: 'slip',
           context: 'invoice_${widget.invoiceId}',
