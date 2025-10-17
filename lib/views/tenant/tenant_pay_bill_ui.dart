@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:manager_room_project/services/invoice_service.dart';
 import 'package:manager_room_project/services/payment_service.dart';
 import 'package:manager_room_project/services/image_service.dart';
-import 'package:manager_room_project/widgets/colors.dart';
+// Use app theme via Theme.of(context).colorScheme instead of fixed colors
 
 class TenantPayBillUi extends StatefulWidget {
   final String invoiceId;
@@ -183,18 +183,19 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('ชำระบิล/อัปโหลดสลิป'),
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
       ),
       body: _loading
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: AppTheme.primary),
+                  CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(scheme.primary)),
                   const SizedBox(height: 12),
                   const Text('กำลังโหลด...'),
                 ],
@@ -230,13 +231,11 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                                     AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : const Icon(Icons.upload, color: Colors.white),
-                      label: const Text(
-                        'ส่งสลิปเพื่อรอตรวจสอบ',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                          : const Icon(Icons.upload),
+                      label: const Text('ส่งสลิปเพื่อรอตรวจสอบ'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: scheme.primary,
+                        foregroundColor: scheme.onPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -273,15 +272,16 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
   }
 
   Widget _buildQrList() {
+    final scheme = Theme.of(context).colorScheme;
     if (_branchQrs.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
-            children: const [
-              Icon(Icons.info_outline, color: Colors.orange),
-              SizedBox(width: 8),
-              Expanded(child: Text('ยังไม่มีบัญชี/QR สำหรับสาขานี้')),
+            children: [
+              Icon(Icons.info_outline, color: scheme.tertiary),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('ยังไม่มีบัญชี/QR สำหรับสาขานี้')),
             ],
           ),
         ),
@@ -313,8 +313,8 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                 decoration: BoxDecoration(
                   border: Border.all(
                       color: _selectedQrId == id
-                          ? AppTheme.primary
-                          : Colors.grey.shade300),
+                          ? scheme.primary
+                          : Theme.of(context).dividerColor),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: RadioListTile<String>(
@@ -327,9 +327,9 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                     children: [
                       Text(accountName),
                       if (isPrimary)
-                        const Text('บัญชีหลัก',
-                            style:
-                                TextStyle(color: Colors.green, fontSize: 12)),
+                        Text('บัญชีหลัก',
+                            style: TextStyle(
+                                color: scheme.secondary, fontSize: 12)),
                       const SizedBox(height: 8),
                       if (image.isNotEmpty)
                         ClipRRect(
@@ -419,6 +419,7 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
   }
 
   Widget _buildSlipUploadCard() {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 2,
       child: Padding(
@@ -476,10 +477,11 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
                       const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: () => setState(() => _slipFile = null),
-                        icon:
-                            const Icon(Icons.delete_outline, color: Colors.red),
-                        label: const Text('ลบ',
-                            style: TextStyle(color: Colors.red)),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('ลบ'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: scheme.error,
+                        ),
                       ),
                     ],
                   )
@@ -517,6 +519,7 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
   }
 
   Widget _row(String k, double v, {bool emphasize = false}) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -528,7 +531,7 @@ class _TenantPayBillUiState extends State<TenantPayBillUi> {
             style: TextStyle(
               fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
               fontSize: emphasize ? 16 : 14,
-              color: emphasize ? Colors.redAccent : null,
+              color: emphasize ? scheme.error : null,
             ),
           ),
         ],

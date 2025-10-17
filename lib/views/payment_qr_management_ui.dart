@@ -103,7 +103,8 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                 children: [
                   Row(
                     children: [
-                      const Text('สาขา: ', style: TextStyle(fontWeight: FontWeight.w700)),
+                      const Text('สาขา: ',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<String>(
@@ -132,21 +133,29 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                     child: _busy
                         ? const Center(child: CircularProgressIndicator())
                         : _qrs.isEmpty
-                            ? const Center(child: Text('ยังไม่มีบัญชี/QR ในสาขานี้'))
+                            ? const Center(
+                                child: Text('ยังไม่มีบัญชี/QR ในสาขานี้'))
                             : ListView.separated(
                                 itemCount: _qrs.length,
-                                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
                                 itemBuilder: (ctx, i) {
                                   final q = _qrs[i];
-                                  final isActive = (q['is_active'] ?? true) == true;
-                                  final isPrimary = (q['is_primary'] ?? false) == true;
+                                  final isActive =
+                                      (q['is_active'] ?? true) == true;
+                                  final isPrimary =
+                                      (q['is_primary'] ?? false) == true;
+                                  final scheme = Theme.of(ctx).colorScheme;
                                   return Card(
                                     child: ListTile(
                                       contentPadding: const EdgeInsets.all(12),
                                       leading: q['qr_code_image'] != null &&
-                                              q['qr_code_image'].toString().isNotEmpty
+                                              q['qr_code_image']
+                                                  .toString()
+                                                  .isNotEmpty
                                           ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                               child: Image.network(
                                                 q['qr_code_image'],
                                                 width: 56,
@@ -155,20 +164,32 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                                               ),
                                             )
                                           : const Icon(Icons.qr_code, size: 36),
-                                      title: Text('${q['bank_name'] ?? '-'}  ${q['account_number'] ?? ''}'),
+                                      title: Text(
+                                          '${q['bank_name'] ?? '-'}  ${q['account_number'] ?? ''}'),
                                       subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(q['account_name'] ?? ''),
                                           const SizedBox(height: 4),
-                                          Wrap(spacing: 6, runSpacing: 6, children: [
-                                            _Chip(
-                                              text: isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
-                                              color: isActive ? Colors.green : Colors.grey,
-                                            ),
-                                            if (isPrimary)
-                                              const _Chip(text: 'บัญชีหลัก', color: Colors.indigo),
-                                          ]),
+                                          Wrap(
+                                              spacing: 6,
+                                              runSpacing: 6,
+                                              children: [
+                                                _Chip(
+                                                  text: isActive
+                                                      ? 'เปิดใช้งาน'
+                                                      : 'ปิดใช้งาน',
+                                                  color: isActive
+                                                      ? scheme.primary
+                                                      : scheme.onSurface,
+                                                ),
+                                                if (isPrimary)
+                                                  _Chip(
+                                                    text: 'บัญชีหลัก',
+                                                    color: scheme.secondary,
+                                                  ),
+                                              ]),
                                         ],
                                       ),
                                       trailing: PopupMenuButton<String>(
@@ -176,30 +197,44 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                                           if (val == 'edit') {
                                             _openEditor(record: q);
                                           } else if (val == 'primary') {
-                                            final res = await BranchPaymentQrService.setPrimary(
+                                            final res =
+                                                await BranchPaymentQrService
+                                                    .setPrimary(
                                               qrId: q['qr_id'].toString(),
                                               branchId: _selectedBranchId!,
                                             );
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
                                                 SnackBar(
-                                                    content: Text(res['success'] == true
+                                                    content: Text(res[
+                                                                'success'] ==
+                                                            true
                                                         ? 'ตั้งเป็นบัญชีหลักแล้ว'
-                                                        : (res['message'] ?? 'ทำรายการไม่สำเร็จ'))),
+                                                        : (res['message'] ??
+                                                            'ทำรายการไม่สำเร็จ'))),
                                               );
                                               await _loadQrs();
                                             }
                                           } else if (val == 'toggle') {
-                                            final res = await BranchPaymentQrService.toggleActive(
+                                            final res =
+                                                await BranchPaymentQrService
+                                                    .toggleActive(
                                               q['qr_id'].toString(),
                                               !isActive,
                                             );
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
                                                 SnackBar(
-                                                    content: Text(res['success'] == true
-                                                        ? (isActive ? 'ปิดใช้งานแล้ว' : 'เปิดใช้งานแล้ว')
-                                                        : (res['message'] ?? 'ทำรายการไม่สำเร็จ'))),
+                                                    content: Text(res[
+                                                                'success'] ==
+                                                            true
+                                                        ? (isActive
+                                                            ? 'ปิดใช้งานแล้ว'
+                                                            : 'เปิดใช้งานแล้ว')
+                                                        : (res['message'] ??
+                                                            'ทำรายการไม่สำเร็จ'))),
                                               );
                                               await _loadQrs();
                                             }
@@ -207,29 +242,41 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                                             final ok = await showDialog<bool>(
                                               context: context,
                                               builder: (ctx) => AlertDialog(
-                                                title: const Text('ยืนยันการลบ'),
-                                                content: const Text('คุณต้องการลบบัญชี/QR นี้หรือไม่?'),
+                                                title:
+                                                    const Text('ยืนยันการลบ'),
+                                                content: const Text(
+                                                    'คุณต้องการลบบัญชี/QR นี้หรือไม่?'),
                                                 actions: [
                                                   TextButton(
-                                                    onPressed: () => Navigator.pop(ctx, false),
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                            ctx, false),
                                                     child: const Text('ยกเลิก'),
                                                   ),
                                                   ElevatedButton(
-                                                    onPressed: () => Navigator.pop(ctx, true),
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                            ctx, true),
                                                     child: const Text('ลบ'),
                                                   ),
                                                 ],
                                               ),
                                             );
                                             if (ok == true) {
-                                              final res = await BranchPaymentQrService.delete(
-                                                  q['qr_id'].toString());
+                                              final res =
+                                                  await BranchPaymentQrService
+                                                      .delete(q['qr_id']
+                                                          .toString());
                                               if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
                                                   SnackBar(
-                                                      content: Text(res['success'] == true
+                                                      content: Text(res[
+                                                                  'success'] ==
+                                                              true
                                                           ? 'ลบสำเร็จ'
-                                                          : (res['message'] ?? 'ลบไม่สำเร็จ'))),
+                                                          : (res['message'] ??
+                                                              'ลบไม่สำเร็จ'))),
                                                 );
                                                 await _loadQrs();
                                               }
@@ -237,15 +284,23 @@ class _PaymentQrManagementUiState extends State<PaymentQrManagementUi> {
                                           }
                                         },
                                         itemBuilder: (ctx) => [
-                                          const PopupMenuItem(value: 'edit', child: Text('แก้ไข')),
+                                          const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Text('แก้ไข')),
                                           if (!isPrimary)
                                             const PopupMenuItem(
-                                                value: 'primary', child: Text('ตั้งเป็นบัญชีหลัก')),
+                                                value: 'primary',
+                                                child:
+                                                    Text('ตั้งเป็นบัญชีหลัก')),
                                           PopupMenuItem(
                                             value: 'toggle',
-                                            child: Text(isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'),
+                                            child: Text(isActive
+                                                ? 'ปิดใช้งาน'
+                                                : 'เปิดใช้งาน'),
                                           ),
-                                          const PopupMenuItem(value: 'delete', child: Text('ลบ')),
+                                          const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Text('ลบ')),
                                         ],
                                       ),
                                     ),
@@ -274,7 +329,9 @@ class _Chip extends StatelessWidget {
         color: color.withOpacity(0.1),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -324,7 +381,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final img =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (img != null) setState(() => _image = img);
   }
 
@@ -384,7 +442,10 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res['success'] == true ? 'บันทึกสำเร็จ' : (res['message'] ?? 'บันทึกไม่สำเร็จ'))),
+        SnackBar(
+            content: Text(res['success'] == true
+                ? 'บันทึกสำเร็จ'
+                : (res['message'] ?? 'บันทึกไม่สำเร็จ'))),
       );
       if (res['success'] == true) Navigator.pop(context, true);
     } catch (e) {
@@ -402,7 +463,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
   Widget build(BuildContext context) {
     return AnimatedPadding(
       duration: const Duration(milliseconds: 150),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -413,7 +475,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.record == null ? 'เพิ่มบัญชี/QR' : 'แก้ไขบัญชี/QR',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 16)),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _bankCtrl,
@@ -421,7 +484,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
                     labelText: 'ธนาคาร',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'กรอกธนาคาร' : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'กรอกธนาคาร' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -430,7 +494,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
                     labelText: 'ชื่อบัญชี',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'กรอกชื่อบัญชี' : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'กรอกชื่อบัญชี' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -439,7 +504,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
                     labelText: 'เลขบัญชี',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'กรอกเลขบัญชี' : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'กรอกเลขบัญชี' : null,
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -461,7 +527,8 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
                           Expanded(
                             child: CheckboxListTile(
                               value: _isActive,
-                              onChanged: (v) => setState(() => _isActive = v ?? true),
+                              onChanged: (v) =>
+                                  setState(() => _isActive = v ?? true),
                               title: const Text('เปิดใช้งาน'),
                               contentPadding: EdgeInsets.zero,
                               controlAffinity: ListTileControlAffinity.leading,
@@ -486,7 +553,9 @@ class _QrEditorSheetState extends State<_QrEditorSheet> {
                       onPressed: _pickImage,
                       icon: const Icon(Icons.image),
                       label: Text(_image == null
-                          ? (widget.record?['qr_code_image'] != null ? 'เปลี่ยนรูป QR' : 'เลือกรูป QR')
+                          ? (widget.record?['qr_code_image'] != null
+                              ? 'เปลี่ยนรูป QR'
+                              : 'เลือกรูป QR')
                           : 'เปลี่ยนรูป QR'),
                     ),
                     const SizedBox(width: 8),
