@@ -1045,21 +1045,7 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       );
     }
 
-    // ปุ่มดูบิล (ถ้าออกบิลแล้ว)
-    if (invoiceId != null) {
-      menuItems.add(
-        PopupMenuItem<String>(
-          value: 'view_invoice',
-          child: Row(
-            children: [
-              Icon(Icons.description, size: 18, color: Colors.blue[700]),
-              const SizedBox(width: 12),
-              const Text('ดูบิล'),
-            ],
-          ),
-        ),
-      );
-    }
+    // ปุ่มดูบิล ถูกย้ายไปหน้า "รายละเอียด" เป็นแท็บใบแจ้งหนี้
 
     // ปุ่มยกเลิก (เฉพาะ draft)
     if (status == 'draft') {
@@ -1134,16 +1120,8 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
             _createInvoice(reading);
             break;
 
-          case 'view_invoice':
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(
-            //     builder: (context) => InvoiceDetailPage(
-            //       invoiceId: invoiceId,
-            //     ),
-            //   ),
-            // );
-            break;
+          // case 'view_invoice':
+          //   break; // ย้ายไปดูในหน้า MeterReadingDetailPage (แท็บ ใบแจ้งหนี้)
 
           case 'cancel':
             _cancelReading(readingId, readingNumber);

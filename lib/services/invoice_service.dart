@@ -567,7 +567,9 @@ class InvoiceService {
         return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
-      if (currentUser.userRole != UserRole.superAdmin) {
+      // อนุญาตเฉพาะ superAdmin และ admin
+      if (!(currentUser.userRole == UserRole.superAdmin ||
+          currentUser.userRole == UserRole.admin)) {
         return {'success': false, 'message': 'ไม่มีสิทธิ์ในการลบใบแจ้งหนี้'};
       }
 
@@ -576,12 +578,25 @@ class InvoiceService {
         return {'success': false, 'message': 'ไม่พบข้อมูลใบแจ้งหนี้'};
       }
 
-      // ไม่ให้ลบถ้าชำระเงินแล้ว
-      if (existing['invoice_status'] == 'paid') {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถลบใบแจ้งหนี้ที่ชำระเงินแล้ว'
-        };
+      // สามารถลบได้ทุกสถานะตามคำขอ
+
+      // ลบประวัติการชำระเงินที่อ้างถึงบิลนี้ก่อน (ถ้ามี)
+      await _supabase.from('payments').delete().eq('invoice_id', invoiceId);
+
+      // ยกเลิกการอ้างอิงจาก meter_readings (ถ้ามี) และย้อนสถานะกลับเป็น confirmed
+      try {
+        final readings = await _supabase
+            .from('meter_readings')
+            .select('reading_id, reading_status')
+            .eq('invoice_id', invoiceId);
+        if (readings.isNotEmpty) {
+          await _supabase
+              .from('meter_readings')
+              .update({'invoice_id': null, 'reading_status': 'confirmed'})
+              .eq('invoice_id', invoiceId);
+        }
+      } catch (_) {
+        // non-fatal
       }
 
       // ลบรายละเอียดต่างๆ ก่อน
