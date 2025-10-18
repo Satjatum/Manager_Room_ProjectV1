@@ -425,124 +425,124 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
         child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // slip image
-                if ((s['slip_image'] ?? '').toString().isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      s['slip_image'],
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // slip image
+                  if ((s['slip_image'] ?? '').toString().isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        s['slip_image'],
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else
+                    Container(
                       width: 96,
                       height: 96,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                else
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.image_not_supported),
-                  ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.receipt_long, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            (s['invoice_number'] ?? '-').toString(),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 16),
-                          ),
-                          const SizedBox(width: 8),
-                          _statusChip(status),
-                        ],
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 6),
-                      Text('ผู้เช่า: ${(s['tenant_name'] ?? '-')}'),
-                      Text(
-                          'ห้อง: ${(s['room_number'] ?? '-')} • สาขา: ${(s['branch_name'] ?? '-')}'),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.payments, size: 16),
-                          const SizedBox(width: 6),
-                          Text('${amount.toStringAsFixed(2)} บาท',
+                      child: const Icon(Icons.image_not_supported),
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.receipt_long, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              (s['invoice_number'] ?? '-').toString(),
                               style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green)),
-                          const Spacer(),
-                          const Icon(Icons.schedule,
-                              size: 16, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(createdAt.split('T').first),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                if (canAction) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _rejectSlip(s),
-                      icon: const Icon(Icons.close, color: Colors.red),
-                      label: const Text('ปฏิเสธ',
-                          style: TextStyle(color: Colors.red)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _approveSlip(s),
-                      icon: const Icon(Icons.check, color: Colors.white),
-                      label: const Text('อนุมัติ',
-                          style: TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PaymentVerificationDetailPage(
-                              slipId: (s['slip_id'] ?? '').toString(),
+                                  fontWeight: FontWeight.w700, fontSize: 16),
                             ),
-                          ),
-                        );
-                        if (mounted) await _load();
-                      },
-                      icon: const Icon(Icons.info_outline),
-                      label: const Text('รายละเอียด'),
+                            const SizedBox(width: 8),
+                            _statusChip(status),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text('ผู้เช่า: ${(s['tenant_name'] ?? '-')}'),
+                        Text(
+                            'ห้อง: ${(s['room_number'] ?? '-')} • สาขา: ${(s['branch_name'] ?? '-')}'),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.payments, size: 16),
+                            const SizedBox(width: 6),
+                            Text('${amount.toStringAsFixed(2)} บาท',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green)),
+                            const Spacer(),
+                            const Icon(Icons.schedule,
+                                size: 16, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(createdAt.split('T').first),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (canAction) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _rejectSlip(s),
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        label: const Text('ปฏิเสธ',
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _approveSlip(s),
+                        icon: const Icon(Icons.check, color: Colors.white),
+                        label: const Text('อนุมัติ',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PaymentVerificationDetailPage(
+                                slipId: (s['slip_id'] ?? '').toString(),
+                              ),
+                            ),
+                          );
+                          if (mounted) await _load();
+                        },
+                        icon: const Icon(Icons.info_outline),
+                        label: const Text('รายละเอียด'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -555,6 +555,7 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
       if (v is String) return double.tryParse(v) ?? 0;
       return 0;
     }
+
     final total = _asDouble(inv['total_amount']);
     final paid = _asDouble(inv['paid_amount']);
     final remain = total - paid;
@@ -591,8 +592,8 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
                 const SizedBox(width: 6),
                 Text(
                   (inv['invoice_number'] ?? '-').toString(),
-                  style:
-                      const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -619,7 +620,8 @@ class _PaymentVerificationPageState extends State<PaymentVerificationPage>
             ),
             const SizedBox(height: 6),
             Text('ผู้เช่า: ${(inv['tenant_name'] ?? '-')}'),
-            Text('ห้อง: ${(inv['room_number'] ?? '-')} • สาขา: ${(inv['branch_name'] ?? '-')}'),
+            Text(
+                'ห้อง: ${(inv['room_number'] ?? '-')} • สาขา: ${(inv['branch_name'] ?? '-')}'),
             const SizedBox(height: 6),
             Row(
               children: [
