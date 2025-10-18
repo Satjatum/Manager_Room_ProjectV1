@@ -216,35 +216,67 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           _showInitialReadingDialog();
         }
       } else {
-        // ครั้งที่ 2+ - ดึงค่าจาก Initial Reading มาเป็นค่าก่อนหน้า
-        if (mounted) {
-          setState(() {
-            _waterPreviousController.text =
-                initialReading['water_current_reading']?.toString() ?? '0';
-            _electricPreviousController.text =
-                initialReading['electric_current_reading']?.toString() ?? '0';
-          });
+        // ครั้งที่ 2+ - หากมีบิล ให้ดึงค่าจากบิลล่าสุดมาเป็นค่าก่อนหน้าเสมอ
+        // ถ้าไม่มีบิล ให้ fallback เป็นค่าจาก Initial Reading
+        final lastBilled = await MeterReadingService
+            .getLastBilledMeterReading(_selectedRoomId!);
 
-          // แสดง Info ว่าดึงค่ามาจากไหน
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'ดึงค่าก่อนหน้าจากการบันทึกฐานเริ่มต้นแล้ว',
-                      style: TextStyle(fontSize: 14),
+        if (mounted) {
+          if (lastBilled != null) {
+            setState(() {
+              _waterPreviousController.text =
+                  (lastBilled['water_current_reading'] ?? 0).toString();
+              _electricPreviousController.text =
+                  (lastBilled['electric_current_reading'] ?? 0).toString();
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ดึงค่าก่อนหน้าจากบันทึกที่ออกบิลล่าสุดแล้ว',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
               ),
-              backgroundColor: Colors.blue,
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+            );
+          } else {
+            setState(() {
+              _waterPreviousController.text =
+                  initialReading['water_current_reading']?.toString() ?? '0';
+              _electricPreviousController.text =
+                  initialReading['electric_current_reading']?.toString() ?? '0';
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ดึงค่าก่อนหน้าจากการบันทึกฐานเริ่มต้นแล้ว',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
     } catch (e) {

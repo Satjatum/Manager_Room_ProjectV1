@@ -1599,10 +1599,78 @@ class _MeterReadingsListPageState extends State<MeterReadingsListPage>
       // ถ้าสร้างบิลสำเร็จ ให้รีเฟรชข้อมูล
       if (result != null && result['success'] == true) {
         _showSuccessSnackBar('สร้างใบแจ้งหนี้สำเร็จ');
+
+        // สร้างร่างบันทึกค่ามิเตอร์ของเดือนถัดไป โดยตั้งค่า "ก่อนหน้า" = "ปัจจุบัน" ของเดือนนี้
+        try {
+          await _ensureNextMonthDraftReading(reading);
+        } catch (e) {
+          // ไม่ขัดขวาง flow หลัก หากสร้างร่างไม่สำเร็จเพียงแจ้งเตือนเบาๆ
+          _showErrorSnackBar('ไม่สามารถเตรียมร่างค่ามิเตอร์เดือนถัดไป: $e');
+        }
+
         _refreshData();
       }
     } catch (e) {
       _showErrorSnackBar('เกิดข้อผิดพลาด: $e');
+    }
+  }
+
+  // เตรียมร่างค่ามิเตอร์เดือนถัดไป โดยดึงค่า "ก่อนหน้า" จากค่า "ปัจจุบัน" ของรายการที่เพิ่งออกบิล
+  Future<void> _ensureNextMonthDraftReading(
+      Map<String, dynamic> currentReading) async {
+    final String? roomId = currentReading['room_id'];
+    final String? tenantId = currentReading['tenant_id'];
+    final String? contractId = currentReading['contract_id'];
+
+    if (roomId == null || tenantId == null || contractId == null) {
+      return; // ข้อมูลไม่ครบ ข้ามไป
+    }
+
+    final int? month = currentReading['reading_month'];
+    final int? year = currentReading['reading_year'];
+
+    if (month == null || year == null) {
+      return; // ไม่มีเดือน/ปี (เช่น initial) ไม่ต้องสร้าง
+    }
+
+    // คำนวณเดือน/ปี ถัดไป
+    int nextMonth = month + 1;
+    int nextYear = year;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+
+    // เช็คว่ามีรอบเดือนถัดไปอยู่แล้วหรือไม่
+    final exists =
+        await MeterReadingService.hasReadingForMonth(roomId, nextMonth, nextYear);
+    if (exists) return;
+
+    final double waterCurrent =
+        (currentReading['water_current_reading'] ?? 0.0).toDouble();
+    final double electricCurrent =
+        (currentReading['electric_current_reading'] ?? 0.0).toDouble();
+
+    final payload = {
+      'room_id': roomId,
+      'tenant_id': tenantId,
+      'contract_id': contractId,
+      'is_initial_reading': false,
+      'reading_month': nextMonth,
+      'reading_year': nextYear,
+      // ตั้งค่าก่อนหน้า = ค่าปัจจุบันของเดือนที่เพิ่งออกบิล
+      'water_previous_reading': waterCurrent,
+      'electric_previous_reading': electricCurrent,
+      // สร้างเป็นร่าง โดยตั้งค่าปัจจุบันเท่ากับก่อนหน้า (usage = 0) ให้แก้ไขภายหลังได้
+      'water_current_reading': waterCurrent,
+      'electric_current_reading': electricCurrent,
+      'reading_date': DateTime.now().toIso8601String().split('T')[0],
+      'reading_notes': 'เตรียมร่างอัตโนมัติจากการออกบิลเดือน $month/$year',
+    };
+
+    final res = await MeterReadingService.createMeterReading(payload);
+    if (res['success'] == true) {
+      _showSuccessSnackBar('เตรียมร่างค่ามิเตอร์เดือนถัดไปสำเร็จ');
     }
   }
 
