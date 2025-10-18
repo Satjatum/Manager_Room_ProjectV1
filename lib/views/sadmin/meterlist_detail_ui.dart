@@ -1026,3 +1026,19 @@ class _InvoiceStatusChip extends StatelessWidget {
     );
   }
 }
+
+class _SectionHeader extends StatelessWidget {
+  final String text;
+  const _SectionHeader(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
