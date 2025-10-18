@@ -330,16 +330,23 @@ class InvoiceService {
       final fixedRates =
           invoiceData["fixed_rates"] as List<Map<String, dynamic>>? ?? [];
       for (var rate in fixedRates) {
+        final fixed = (rate['fixed_amount'] ?? 0.0).toDouble();
+        final add = (rate['additional_charge'] ?? 0.0).toDouble();
+        final unit = fixed + add;
+        final qty = ((rate['quantity'] ?? 1) as num).toInt();
+        final lineTotal = unit * (qty <= 0 ? 1 : qty);
+
         await _supabase.from('invoice_utilities').insert({
           'invoice_id': invoiceId,
           'rate_id': rate['rate_id'],
           'utility_name': rate['rate_name'],
-          'unit_price': 0.0,
-          'usage_amount': 0.0,
-          'fixed_amount': rate['fixed_amount'] ?? 0.0,
-          'additional_charge': rate['additional_charge'] ?? 0.0,
-          'total_amount': (rate['fixed_amount'] ?? 0.0) +
-              (rate['additional_charge'] ?? 0.0),
+          // บันทึกราคา/หน่วยและจำนวนเป็น usage_amount เพื่อให้เห็นจำนวน
+          'unit_price': unit,
+          'usage_amount': qty,
+          // เก็บรายละเอียดราคาต่อหน่วย (ฐาน + เพิ่มเติม) ไว้ด้วย
+          'fixed_amount': fixed,
+          'additional_charge': add,
+          'total_amount': lineTotal,
         });
       }
 
@@ -560,7 +567,9 @@ class InvoiceService {
         return {'success': false, 'message': 'กรุณาเข้าสู่ระบบใหม่'};
       }
 
-      if (currentUser.userRole != UserRole.superAdmin) {
+      // อนุญาตเฉพาะ superAdmin และ admin
+      if (!(currentUser.userRole == UserRole.superAdmin ||
+          currentUser.userRole == UserRole.admin)) {
         return {'success': false, 'message': 'ไม่มีสิทธิ์ในการลบใบแจ้งหนี้'};
       }
 
@@ -569,12 +578,25 @@ class InvoiceService {
         return {'success': false, 'message': 'ไม่พบข้อมูลใบแจ้งหนี้'};
       }
 
-      // ไม่ให้ลบถ้าชำระเงินแล้ว
-      if (existing['invoice_status'] == 'paid') {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถลบใบแจ้งหนี้ที่ชำระเงินแล้ว'
-        };
+      // สามารถลบได้ทุกสถานะตามคำขอ
+
+      // ลบประวัติการชำระเงินที่อ้างถึงบิลนี้ก่อน (ถ้ามี)
+      await _supabase.from('payments').delete().eq('invoice_id', invoiceId);
+
+      // ยกเลิกการอ้างอิงจาก meter_readings (ถ้ามี) และย้อนสถานะกลับเป็น confirmed
+      try {
+        final readings = await _supabase
+            .from('meter_readings')
+            .select('reading_id, reading_status')
+            .eq('invoice_id', invoiceId);
+        if (readings.isNotEmpty) {
+          await _supabase
+              .from('meter_readings')
+              .update({'invoice_id': null, 'reading_status': 'confirmed'})
+              .eq('invoice_id', invoiceId);
+        }
+      } catch (_) {
+        // non-fatal
       }
 
       // ลบรายละเอียดต่างๆ ก่อน

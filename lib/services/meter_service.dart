@@ -253,6 +253,27 @@ class MeterReadingService {
     }
   }
 
+  /// ดึงค่ามิเตอร์ล่าสุดที่ "ออกบิลแล้ว" ของห้อง
+  static Future<Map<String, dynamic>?> getLastBilledMeterReading(
+      String roomId) async {
+    try {
+      final result = await _supabase
+          .from('meter_readings')
+          .select('*')
+          .eq('room_id', roomId)
+          .eq('is_initial_reading', false)
+          .eq('reading_status', 'billed')
+          .order('reading_year', ascending: false)
+          .order('reading_month', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      return result;
+    } catch (e) {
+      throw Exception('เกิดข้อผิดพลาดในการโหลดค่ามิเตอร์ที่ออกบิลล่าสุด: $e');
+    }
+  }
+
   /// ดึง Initial Reading ของห้อง (ถ้ามี)
   static Future<Map<String, dynamic>?> getInitialReading(String roomId) async {
     try {

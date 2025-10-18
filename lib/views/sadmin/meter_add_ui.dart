@@ -37,6 +37,8 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
   // สำหรับ Initial Reading
   bool _isInitialReading = false;
   bool _hasCheckedInitialReading = false;
+  bool _currentMonthRecorded = false;
+  bool _checkingCurrentMonth = false;
 
   String? _selectedBranchId;
   String? _selectedRoomId;
@@ -216,35 +218,77 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
           _showInitialReadingDialog();
         }
       } else {
-        // ครั้งที่ 2+ - ดึงค่าจาก Initial Reading มาเป็นค่าก่อนหน้า
-        if (mounted) {
-          setState(() {
-            _waterPreviousController.text =
-                initialReading['water_current_reading']?.toString() ?? '0';
-            _electricPreviousController.text =
-                initialReading['electric_current_reading']?.toString() ?? '0';
-          });
+        // ตั้งค่าเดือน/ปีเป็นเดือนและปีปัจจุบันสำหรับการบันทึกปกติ
+        final now = DateTime.now();
+        setState(() {
+          _selectedMonth = now.month;
+          _selectedYear = now.year;
+        });
 
-          // แสดง Info ว่าดึงค่ามาจากไหน
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'ดึงค่าก่อนหน้าจากการบันทึกฐานเริ่มต้นแล้ว',
-                      style: TextStyle(fontSize: 14),
+        // ตรวจสอบว่าเดือนปัจจุบันมีการลงมิเตอร์แล้วหรือไม่
+        await _checkCurrentMonthStatus();
+
+        // ครั้งที่ 2+ - หากมีบิล ให้ดึงค่าจากบิลล่าสุดมาเป็นค่าก่อนหน้าเสมอ
+        // ถ้าไม่มีบิล ให้ fallback เป็นค่าจาก Initial Reading
+        final lastBilled = await MeterReadingService.getLastBilledMeterReading(
+            _selectedRoomId!);
+
+        if (mounted) {
+          if (lastBilled != null) {
+            setState(() {
+              _waterPreviousController.text =
+                  (lastBilled['water_current_reading'] ?? 0).toString();
+              _electricPreviousController.text =
+                  (lastBilled['electric_current_reading'] ?? 0).toString();
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ดึงค่าก่อนหน้าจากบันทึกที่ออกบิลล่าสุดแล้ว',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
               ),
-              backgroundColor: Colors.blue,
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+            );
+          } else {
+            setState(() {
+              _waterPreviousController.text =
+                  initialReading['water_current_reading']?.toString() ?? '0';
+              _electricPreviousController.text =
+                  initialReading['electric_current_reading']?.toString() ?? '0';
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ดึงค่าก่อนหน้าจากการบันทึกฐานเริ่มต้นแล้ว',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -252,6 +296,35 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
       setState(() {
         _hasCheckedInitialReading = false;
         _isInitialReading = false;
+      });
+    }
+  }
+
+  // ตรวจสอบสถานะการลงมิเตอร์สำหรับเดือน/ปีปัจจุบันของห้องที่เลือก
+  Future<void> _checkCurrentMonthStatus() async {
+    if (_selectedRoomId == null || _isInitialReading) return;
+    final now = DateTime.now();
+    setState(() {
+      _checkingCurrentMonth = true;
+    });
+    try {
+      final exists = await MeterReadingService.hasReadingForMonth(
+          _selectedRoomId!, now.month, now.year);
+      if (!mounted) return;
+      setState(() {
+        _currentMonthRecorded = exists;
+        _selectedMonth = now.month;
+        _selectedYear = now.year;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _currentMonthRecorded = false;
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _checkingCurrentMonth = false;
       });
     }
   }
@@ -1071,6 +1144,49 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
                   Expanded(child: _buildYearDropdown()),
                 ],
               ),
+              const SizedBox(height: 8),
+              if (widget.readingId == null && _selectedRoomId != null)
+                Builder(builder: (_) {
+                  if (_checkingCurrentMonth) {
+                    return Row(
+                      children: const [
+                        SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(width: 8),
+                        Text('กำลังตรวจสอบเดือนนี้...'),
+                      ],
+                    );
+                  }
+                  if (_currentMonthRecorded) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info, color: Colors.orange.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ลงมิเตอร์เดือนนี้แล้ว',
+                              style: TextStyle(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
             ],
 
             const SizedBox(height: 16),
@@ -1283,8 +1399,25 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
   }
 
   Widget _buildMonthDropdown() {
+    final now = DateTime.now();
+    final isEditing = widget.readingId != null;
+    final int effectiveValue = _selectedMonth ?? now.month;
+    final items = isEditing
+        ? List.generate(
+            12,
+            (index) => DropdownMenuItem(
+                  value: index + 1,
+                  child: Text(_getMonthName(index + 1)),
+                ))
+        : [
+            DropdownMenuItem(
+              value: now.month,
+              child: Text(_getMonthName(now.month) + ' (เดือนปัจจุบัน)'),
+            )
+          ];
+
     return DropdownButtonFormField<int>(
-      value: _selectedMonth,
+      value: effectiveValue,
       decoration: InputDecoration(
         labelText: 'เดือน *',
         prefixIcon: const Icon(Icons.calendar_month),
@@ -1302,24 +1435,39 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
-      items: List.generate(
-          12,
-          (index) => DropdownMenuItem(
-                value: index + 1,
-                child: Text(_getMonthName(index + 1)),
-              )),
+      items: items,
       validator: !_isInitialReading
           ? (value) => value == null ? 'กรุณาเลือกเดือน' : null
           : null,
-      onChanged: (value) {
-        setState(() => _selectedMonth = value);
-      },
+      onChanged: isEditing
+          ? (value) {
+              setState(() => _selectedMonth = value);
+            }
+          : null,
     );
   }
 
   Widget _buildYearDropdown() {
+    final now = DateTime.now();
+    final isEditing = widget.readingId != null;
+    final int effectiveValue = _selectedYear ?? now.year;
+    final items = isEditing
+        ? List.generate(5, (index) {
+            final year = DateTime.now().year - 2 + index;
+            return DropdownMenuItem(
+              value: year,
+              child: Text('$year'),
+            );
+          })
+        : [
+            DropdownMenuItem(
+              value: now.year,
+              child: Text('${now.year} (ปีปัจจุบัน)'),
+            )
+          ];
+
     return DropdownButtonFormField<int>(
-      value: _selectedYear,
+      value: effectiveValue,
       decoration: InputDecoration(
         labelText: 'ปี *',
         prefixIcon: const Icon(Icons.calendar_today),
@@ -1337,19 +1485,15 @@ class _MeterReadingFormPageState extends State<MeterReadingFormPage> {
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
-      items: List.generate(5, (index) {
-        final year = DateTime.now().year - 2 + index;
-        return DropdownMenuItem(
-          value: year,
-          child: Text('$year'),
-        );
-      }),
+      items: items,
       validator: !_isInitialReading
           ? (value) => value == null ? 'กรุณาเลือกปี' : null
           : null,
-      onChanged: (value) {
-        setState(() => _selectedYear = value);
-      },
+      onChanged: isEditing
+          ? (value) {
+              setState(() => _selectedYear = value);
+            }
+          : null,
     );
   }
 
