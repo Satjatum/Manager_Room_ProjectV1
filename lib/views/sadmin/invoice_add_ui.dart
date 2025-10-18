@@ -223,6 +223,7 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
         'rate_name': rate['rate_name'],
         'fixed_amount': rate['fixed_amount'],
         'additional_charge': rate['additional_charge'] ?? 0.0,
+        'quantity': 1,
       });
       _calculateOtherChargesTotal();
     });
@@ -238,8 +239,10 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
   void _calculateOtherChargesTotal() {
     double total = 0.0;
     for (var rate in _selectedFixedRates) {
-      total += (rate['fixed_amount'] ?? 0.0).toDouble();
-      total += (rate['additional_charge'] ?? 0.0).toDouble();
+      final unit = (rate['fixed_amount'] ?? 0.0).toDouble() +
+          (rate['additional_charge'] ?? 0.0).toDouble();
+      final qty = (rate['quantity'] ?? 1) as int;
+      total += unit * (qty <= 0 ? 1 : qty);
     }
     _otherCharges = total;
   }
@@ -744,7 +747,9 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                 final fixedAmount = (rate['fixed_amount'] ?? 0.0).toDouble();
                 final additionalCharge =
                     (rate['additional_charge'] ?? 0.0).toDouble();
-                final total = fixedAmount + additionalCharge;
+                final unit = fixedAmount + additionalCharge;
+                final qty = (rate['quantity'] ?? 1) as int;
+                final lineTotal = unit * (qty <= 0 ? 1 : qty);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -783,25 +788,23 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                               Row(
                                 children: [
                                   Text(
-                                    'ค่าคงที่: ${fixedAmount.toStringAsFixed(2)} บาท',
+                                    'หน่วยละ: ${unit.toStringAsFixed(2)} บาท',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey[600],
                                     ),
                                   ),
                                   if (additionalCharge > 0) ...[
-                                    Text(
-                                      ' + ',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.purple.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
-                                    ),
-                                    Text(
-                                      '${additionalCharge.toStringAsFixed(2)} บาท',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
+                                      child: Text(
+                                        '+${additionalCharge.toStringAsFixed(2)} เพิ่มเติม',
+                                        style: TextStyle(fontSize: 11, color: Colors.purple[700]),
                                       ),
                                     ),
                                   ],
@@ -811,15 +814,58 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                           ),
                         ),
 
-                        // ราคารวม
+                        // ตัวควบคุมจำนวน + ราคารวม
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'ลดจำนวน',
+                                  onPressed: () {
+                                    setState(() {
+                                      final current = (rate['quantity'] ?? 1) as int;
+                                      final next = (current - 1) < 1 ? 1 : (current - 1);
+                                      rate['quantity'] = next;
+                                      _calculateOtherChargesTotal();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                  color: Colors.purple,
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple.withOpacity(0.06),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    'x $qty',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'เพิ่มจำนวน',
+                                  onPressed: () {
+                                    setState(() {
+                                      final current = (rate['quantity'] ?? 1) as int;
+                                      rate['quantity'] = current + 1;
+                                      _calculateOtherChargesTotal();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  color: Colors.purple,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
                             Text(
-                              '${total.toStringAsFixed(2)} บาท',
+                              '${unit.toStringAsFixed(2)} × $qty = ${lineTotal.toStringAsFixed(2)} บาท',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 14,
                                 color: Colors.purple,
                               ),
                             ),
@@ -2071,7 +2117,9 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                           (rate['fixed_amount'] ?? 0.0).toDouble();
                       final additionalCharge =
                           (rate['additional_charge'] ?? 0.0).toDouble();
-                      final total = fixedAmount + additionalCharge;
+                      final unit = fixedAmount + additionalCharge;
+                      final qty = (rate['quantity'] ?? 1) as int;
+                      final lineTotal = unit * (qty <= 0 ? 1 : qty);
 
                       return Padding(
                         padding: const EdgeInsets.only(left: 24, bottom: 6),
@@ -2093,10 +2141,10 @@ class _InvoiceAddPageState extends State<InvoiceAddPage> {
                               ),
                             ),
                             Text(
-                              '${total.toStringAsFixed(2)} บาท',
+                              '${unit.toStringAsFixed(2)} × $qty = ${lineTotal.toStringAsFixed(2)} บาท',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.purple[700],
                               ),
                             ),

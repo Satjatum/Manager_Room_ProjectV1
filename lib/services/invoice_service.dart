@@ -330,16 +330,23 @@ class InvoiceService {
       final fixedRates =
           invoiceData["fixed_rates"] as List<Map<String, dynamic>>? ?? [];
       for (var rate in fixedRates) {
+        final fixed = (rate['fixed_amount'] ?? 0.0).toDouble();
+        final add = (rate['additional_charge'] ?? 0.0).toDouble();
+        final unit = fixed + add;
+        final qty = ((rate['quantity'] ?? 1) as num).toInt();
+        final lineTotal = unit * (qty <= 0 ? 1 : qty);
+
         await _supabase.from('invoice_utilities').insert({
           'invoice_id': invoiceId,
           'rate_id': rate['rate_id'],
           'utility_name': rate['rate_name'],
-          'unit_price': 0.0,
-          'usage_amount': 0.0,
-          'fixed_amount': rate['fixed_amount'] ?? 0.0,
-          'additional_charge': rate['additional_charge'] ?? 0.0,
-          'total_amount': (rate['fixed_amount'] ?? 0.0) +
-              (rate['additional_charge'] ?? 0.0),
+          // บันทึกราคา/หน่วยและจำนวนเป็น usage_amount เพื่อให้เห็นจำนวน
+          'unit_price': unit,
+          'usage_amount': qty,
+          // เก็บรายละเอียดราคาต่อหน่วย (ฐาน + เพิ่มเติม) ไว้ด้วย
+          'fixed_amount': fixed,
+          'additional_charge': add,
+          'total_amount': lineTotal,
         });
       }
 
